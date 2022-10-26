@@ -21,6 +21,10 @@ typedef struct avl_node
 	int sum; //该树总节点个数（不包括自己）
 } AVL_node;
 
+void table_init();
+void stack_push();
+void stack_pop();
+
 // AVL_node* new_avl_node(int num);//创建新节点
 int cmp(AVL_node *a, AVL_node *b);
 AVL_node *new_avl_node(ListNode *k); //创建新节点

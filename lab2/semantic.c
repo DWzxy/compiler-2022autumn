@@ -5,8 +5,8 @@
 #define DEBUG
 
 // Type* symbol_table[HASH_SIZE];
-extern AVL_node *symbol_define_table;
-extern AVL_node *symbol_announce_table; //符号表
+extern AVL_node *define_table;
+extern AVL_node *announce_table; //符号表
 
 Type *new_type(enum Kind kind)
 {
@@ -140,7 +140,7 @@ ListNode *deal_FunDec(Node *k, Type *type)
         ListNode *now = deal_VarList(k->child->next->next);
         fun->type->func.para = now; //参数列表
     }
-    insert_listnode(fun, &symbol_define_table); //添加自己
+    insert_listnode(fun, &define_table); //添加自己
     return fun;
 }
 
@@ -170,7 +170,7 @@ Type *deal_StructSpecifier(Node *k)
     Type *list = new_type(STRUCTURE); //结构体成员列表
     if (strcmp(k->child->next->name, "Tag") == 0)
     { // STRUCT Tag
-        ListNode *tmp = search_listnode(symbol_define_table,
+        ListNode *tmp = search_listnode(define_table,
                                         k->child->next->child->val.char_val,
                                         STRUCTURE);
         if (tmp != NULL)
@@ -181,7 +181,7 @@ Type *deal_StructSpecifier(Node *k)
             ListNode *p = new_listnode(k->child->next->child
                                            ->val.char_val,
                                        list);
-            insert_listnode(p, &symbol_announce_table);
+            insert_listnode(p, &announce_table);
 #ifdef DEBUG
             printf("STRUCT %s\n", p->name);
 #endif
@@ -194,7 +194,7 @@ Type *deal_StructSpecifier(Node *k)
         { //有名字
             ListNode *p = new_listnode(k->child->next->child->val.char_val,
                                        list);
-            insert_listnode(p, &symbol_define_table);
+            insert_listnode(p, &define_table);
             if (k->child_num == 5)
             {
                 ListNode *deflist = deal_DefList(k->child->next->next->next);
@@ -231,7 +231,7 @@ ListNode *deal_DefList(Node *k)
             ListNode *now = deal_Dec(j, spe);
             if (now != NULL)
             {
-                insert_listnode(now, &symbol_define_table);
+                insert_listnode(now, &define_table);
                 ListNode *Var = copy_listnode(now);
                 if (head == NULL)
                     head = last = Var;
@@ -281,7 +281,7 @@ ListNode *deal_VarList(Node *k) //函数参数列表
         ListNode *var = deal_VarDec(i->child->next, spe);
         if (var != NULL)
         {
-            insert_listnode(var, &symbol_define_table);
+            insert_listnode(var, &define_table);
             ListNode *Var = copy_listnode(var);
             if (head == NULL)
                 head = last = Var;
@@ -309,7 +309,7 @@ void deal_ExtDecList(Node *k, Type *type)
             //以逗号隔开的每个简单参数的头
             ListNode *now = deal_VarDec(i, type);
             if (now != NULL)
-                insert_listnode(now, &symbol_define_table);
+                insert_listnode(now, &define_table);
             if (i->next == NULL)
                 break;
         }
@@ -452,7 +452,7 @@ Type *check_exp(Node *k)
         {
             if (!check_error1(k->child->val.char_val, k->child->line_num))
                 return NULL;
-            now = search_type(symbol_define_table, k->child->val.char_val);
+            now = search_type(define_table, k->child->val.char_val);
         }
     }
     else if (k->child_num == 2) // NOT Exp | MINUS Exp
@@ -495,7 +495,7 @@ Type *check_exp(Node *k)
         { // Args = Exp COMMA Args | Exp
             if (!check_error2(k->child->val.char_val, k->child->line_num))
                 return NULL;
-            ListNode *para = search_listnode(symbol_define_table,
+            ListNode *para = search_listnode(define_table,
                                              k->child->val.char_val, FUNC)
                                  ->type->func.para;
             for (Node *i = k->child->next->next;; i = i->child->next->next)
@@ -578,9 +578,9 @@ bool if_left(Node *k)
 
 bool check_error1(char *name, int line_num)
 {
-    ListNode *tmp1 = search_listnode(symbol_define_table, name, BASIC);
-    ListNode *tmp2 = search_listnode(symbol_define_table, name, ARRAY);
-    ListNode *tmp3 = search_listnode(symbol_define_table, name, STRUCTURE);
+    ListNode *tmp1 = search_listnode(define_table, name, BASIC);
+    ListNode *tmp2 = search_listnode(define_table, name, ARRAY);
+    ListNode *tmp3 = search_listnode(define_table, name, STRUCTURE);
     if (tmp1 == NULL && tmp2 == NULL && tmp3 == NULL)
     {
         error(1, line_num, "Undefined variable", name);
@@ -591,7 +591,7 @@ bool check_error1(char *name, int line_num)
 
 bool check_error2(char *name, int line_num)
 {
-    ListNode *tmp = search_listnode(symbol_define_table, name, FUNC);
+    ListNode *tmp = search_listnode(define_table, name, FUNC);
     if (tmp == NULL)
     {
         error(2, line_num, "Undefined function", name);
@@ -602,9 +602,9 @@ bool check_error2(char *name, int line_num)
 
 bool check_error3(char *name, int line_num)
 {
-    ListNode *tmp1 = search_listnode(symbol_define_table, name, BASIC);
-    ListNode *tmp2 = search_listnode(symbol_define_table, name, ARRAY);
-    ListNode *tmp3 = search_listnode(symbol_define_table, name, STRUCTURE);
+    ListNode *tmp1 = search_listnode(define_table, name, BASIC);
+    ListNode *tmp2 = search_listnode(define_table, name, ARRAY);
+    ListNode *tmp3 = search_listnode(define_table, name, STRUCTURE);
     if (tmp1 != NULL || tmp2 != NULL || tmp3 != NULL)
     {
         error(3, line_num, "Redefined variable", name);
@@ -615,7 +615,7 @@ bool check_error3(char *name, int line_num)
 
 bool check_error4(char *name, int line_num)
 {
-    ListNode *tmp = search_listnode(symbol_define_table, name, FUNC);
+    ListNode *tmp = search_listnode(define_table, name, FUNC);
     if (tmp != NULL)
     {
         error(4, line_num, "Rndefined function", name);

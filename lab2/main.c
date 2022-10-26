@@ -22,7 +22,7 @@ int main(int argc, char **argv)
         yyrestart(f);
         yyparse();
     }
-
+table_init();
     read(semantic_tree);
   /*  printf("\n\n\n\n\n");
     printf("[[[[announce_table]]]]\n");

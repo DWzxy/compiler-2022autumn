@@ -46,7 +46,7 @@ typedef struct Type_
 
 typedef struct ListNode_
 {
-    char name[30];          // 域的名字
+    char name[50];          // 域的名字
     struct Type_ *type;     // 域的类型
     struct ListNode_ *next; // 下一个域
 } ListNode;
