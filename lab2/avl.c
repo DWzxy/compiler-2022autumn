@@ -1,10 +1,6 @@
 #include "avl.h"
 #include "semantic.h"
 
-AVL_node *announce_table = NULL;
-AVL_node *define_table = NULL;
-//搜索树，左大右小
-
 AVL_node *announce_stack[101];
 AVL_node *define_stack[101];
 int announce_top = 0;
@@ -15,30 +11,22 @@ AVL_node *st[100001]; //插入时用的栈
 
 void table_init()
 {
-	announce_stack[announce_top] = announce_table;
-	announce_table = NULL;
-
-	define_stack[define_top] = define_table;
-	define_table = NULL;
+	announce_stack[announce_top] = NULL;
+	define_stack[define_top] = NULL;
 }
 
 void stack_push()
 {
 	announce_top++;
-	announce_table = NULL;
-	announce_stack[announce_top] = announce_table;
+	announce_stack[announce_top] = NULL;
 
 	define_top++;
-	define_table = NULL;
-	define_stack[define_top] = define_table;
+	define_stack[define_top] =  NULL;
 }
 void stack_pop()
 {
 	announce_top--;
-	announce_table = announce_stack[announce_top];
-
 	define_top--;
-	define_table = define_stack[define_top];
 }
 
 int cmp(AVL_node *a, AVL_node *b)
@@ -273,18 +261,6 @@ AVL_node *search(int x, AVL_node *k)
 	return k;
 } //寻找第x大城市
 
-bool if_exist(AVL_node *k, ListNode *p)
-{
-	if (k == NULL)
-		return false;
-	if (strcmp(k->node->name, p->name) == 0)
-		return true;
-	else if (strcmp(k->node->name, p->name) > 0)
-		return if_exist(k->lc, p);
-	else
-		return if_exist(k->rc, p);
-}
-
 void print_avl_tree(AVL_node *k)
 {
 	if (k == NULL)
@@ -344,7 +320,7 @@ void print_avl_type(Type *k)
 	}
 }
 
-ListNode *search_listnode(AVL_node *k, char *name, enum Kind kind)
+ListNode *avl_search_listnode(AVL_node *k, char *name, enum Kind kind)
 {
 	if (k == NULL)
 		return NULL;
@@ -352,20 +328,69 @@ ListNode *search_listnode(AVL_node *k, char *name, enum Kind kind)
 		kind == k->node->type->kind)
 		return copy_listnode(k->node);
 	else if (strcmp(name, k->node->name) < 0)
-		return search_listnode(k->lc, name, kind);
+		return avl_search_listnode(k->lc, name, kind);
 	else
-		return search_listnode(k->rc, name, kind);
+		return avl_search_listnode(k->rc, name, kind);
 }
 
-Type *search_type(AVL_node *k, char *name)
+Type *avl_search_type(AVL_node *k, char *name)
 {
-	ListNode *tmp = search_listnode(k, name, BASIC);
+	ListNode *tmp = avl_search_listnode(k, name, BASIC);
 	if (tmp == NULL)
-		tmp = search_listnode(k, name, ARRAY);
+		tmp = avl_search_listnode(k, name, ARRAY);
 	if (tmp == NULL)
-		tmp = search_listnode(k, name, STRUCTURE);
+		tmp = avl_search_listnode(k, name, STRUCTURE);
 	if (tmp == NULL)
-		tmp = search_listnode(k, name, FUNC);
-	if(tmp==NULL) return NULL;
+		tmp = avl_search_listnode(k, name, FUNC);
+	if (tmp == NULL)
+		return NULL;
 	return tmp->type;
+}
+
+ListNode *search_listnode(enum Table_kind m, char *name, enum Kind kind)
+{
+	ListNode *now = NULL;
+	if (m == define)
+	{
+		for (int i = define_top; i >= 0; i--)
+		{
+			now = avl_search_listnode(define_stack[i], name, kind);
+			if (now)
+				break;
+		}
+	}
+	else
+	{
+		for (int i = announce_top; i >= 0; i--)
+		{
+			now = avl_search_listnode(announce_stack[i], name, kind);
+			if (now)
+				break;
+		}
+	}
+	return now;
+}
+
+Type *search_type(enum Table_kind m, char *name)
+{
+	Type *now = NULL;
+	if (m == define)
+	{
+		for (int i = define_top; i >= 0; i--)
+		{
+			now = avl_search_type(define_stack[i], name);
+			if (now)
+				break;
+		}
+	}
+	else
+	{
+		for (int i = announce_top; i >= 0; i--)
+		{
+			now = avl_search_type(announce_stack[i], name);
+			if (now)
+				break;
+		}
+	}
+	return now;
 }

@@ -9,6 +9,11 @@
 typedef struct ListNode_ ListNode;
 typedef struct Type_ Type;
 enum Kind;
+enum Table_kind
+{
+	announce,
+	define
+};
 
 typedef struct avl_node
 {
@@ -35,9 +40,10 @@ void RotateRL(AVL_node **ptr);
 // bool Insert(AVL_node **ptr, int num);
 bool Insert(AVL_node **ptr, ListNode *k); //添加
 AVL_node *search(int x, AVL_node *k);
-bool if_exist(AVL_node *root, ListNode *k);
 void print_avl_tree(AVL_node *k);
 void print_avl_listnode(ListNode *k);
 void print_avl_type(Type *k);
-ListNode *search_listnode(AVL_node *k, char *name, enum Kind kind);
-Type *search_type(AVL_node *k, char *name);
+ListNode *avl_search_listnode(AVL_node *k, char *name, enum Kind kind);
+Type *avl_search_type(AVL_node *k, char *name);
+ListNode *search_listnode(enum Table_kind m, char *name, enum Kind kind);
+Type *search_type(enum Table_kind m, char *name);
