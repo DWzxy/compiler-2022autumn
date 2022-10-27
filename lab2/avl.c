@@ -21,7 +21,7 @@ void stack_push()
 	announce_stack[announce_top] = NULL;
 
 	define_top++;
-	define_stack[define_top] =  NULL;
+	define_stack[define_top] = NULL;
 }
 void stack_pop()
 {
@@ -325,8 +325,10 @@ ListNode *avl_search_listnode(AVL_node *k, char *name, enum Kind kind)
 	if (k == NULL)
 		return NULL;
 	if (strcmp(k->node->name, name) == 0 &&
-		kind == k->node->type->kind)
-		return copy_listnode(k->node);
+		kind == k->node->type->kind){
+			return copy_listnode(k->node);
+		}
+		
 	else if (strcmp(name, k->node->name) < 0)
 		return avl_search_listnode(k->lc, name, kind);
 	else
@@ -347,12 +349,15 @@ Type *avl_search_type(AVL_node *k, char *name)
 	return tmp->type;
 }
 
-ListNode *search_listnode(enum Table_kind m, char *name, enum Kind kind)
+ListNode *search_listnode(enum Table_kind m, char *name, enum Kind kind, bool flag)
 {
 	ListNode *now = NULL;
+	int bottom = 0;
 	if (m == define)
 	{
-		for (int i = define_top; i >= 0; i--)
+		if (flag)
+			bottom = define_top;
+		for (int i = define_top; i >= bottom; i--)
 		{
 			now = avl_search_listnode(define_stack[i], name, kind);
 			if (now)
@@ -361,22 +366,48 @@ ListNode *search_listnode(enum Table_kind m, char *name, enum Kind kind)
 	}
 	else
 	{
-		for (int i = announce_top; i >= 0; i--)
+		if (flag)
+			bottom = announce_top;
+		for (int i = announce_top; i >= bottom; i--)
 		{
 			now = avl_search_listnode(announce_stack[i], name, kind);
 			if (now)
 				break;
 		}
 	}
+//	        		if(now){
+//		printf("find it !\n");
+//		print_avl_listnode(now);
+//	}
 	return now;
 }
 
-Type *search_type(enum Table_kind m, char *name)
+ListNode *search_all_listnode(enum Table_kind m, char *name, bool flag)
+{
+	ListNode *tmp1 = search_listnode(m, name, BASIC, flag);
+	ListNode *tmp2 = search_listnode(m, name, ARRAY, flag);
+	ListNode *tmp3 = search_listnode(m, name, FUNC, flag);
+	ListNode *tmp4 = search_listnode(m, name, STRUCTURE, flag);
+	ListNode*tmp=NULL;
+	if (tmp1)
+		tmp=tmp1;
+	else if (tmp2)
+		tmp=tmp2;
+	else if (tmp3)
+		tmp=tmp3;
+	else tmp=tmp4;
+	return tmp;
+}
+
+Type *search_type(enum Table_kind m, char *name, bool flag)
 {
 	Type *now = NULL;
+	int bottom = 0;
 	if (m == define)
 	{
-		for (int i = define_top; i >= 0; i--)
+		if (flag)
+			bottom = define_top;
+		for (int i = define_top; i >= bottom; i--)
 		{
 			now = avl_search_type(define_stack[i], name);
 			if (now)
@@ -385,7 +416,9 @@ Type *search_type(enum Table_kind m, char *name)
 	}
 	else
 	{
-		for (int i = announce_top; i >= 0; i--)
+		if (flag)
+			bottom = announce_top;
+		for (int i = announce_top; i >= bottom; i--)
 		{
 			now = avl_search_type(announce_stack[i], name);
 			if (now)

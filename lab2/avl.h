@@ -40,10 +40,14 @@ void RotateRL(AVL_node **ptr);
 // bool Insert(AVL_node **ptr, int num);
 bool Insert(AVL_node **ptr, ListNode *k); //添加
 AVL_node *search(int x, AVL_node *k);
+
 void print_avl_tree(AVL_node *k);
 void print_avl_listnode(ListNode *k);
 void print_avl_type(Type *k);
+
 ListNode *avl_search_listnode(AVL_node *k, char *name, enum Kind kind);
 Type *avl_search_type(AVL_node *k, char *name);
-ListNode *search_listnode(enum Table_kind m, char *name, enum Kind kind);
-Type *search_type(enum Table_kind m, char *name);
+ListNode *search_listnode(enum Table_kind m, char *name, 
+enum Kind kind,bool flag);
+ListNode *search_all_listnode(enum Table_kind m, char *name, bool flag);
+Type *search_type(enum Table_kind m, char *name,bool flag);

@@ -47,7 +47,7 @@ void yyerror(char* msg, ...);
 %%
 
 Program : ExtDefList {$$=semantic_tree=new_node(@1.first_line,"Program",1,$1);
-if(if_over) print_tree($$,0);}
+/*if(if_over) print_tree($$,0);*/}
 ;
 ExtDefList : ExtDef ExtDefList {$$=new_node(@1.first_line,
 "ExtDefList",2,$1,$2);}
@@ -57,6 +57,7 @@ ExtDef : Specifier ExtDecList SEMI {$$=new_node(@1.first_line,
 "ExtDef",3,$1,$2,$3);}
 | Specifier SEMI {$$=new_node(@1.first_line,"ExtDef",2,$1,$2);}
 | Specifier FunDec CompSt {$$=new_node(@1.first_line,"ExtDef",3,$1,$2,$3);}
+| Specifier FunDec SEMI {$$=new_node(@1.first_line,"ExtDef",3,$1,$2,$3);}
 | error SEMI {yyerror("wrong expression 1",@1.first_line);}
 ;
 ExtDecList : VarDec {$$=new_node(@1.first_line,"ExtDecList",1,$1);}
@@ -182,6 +183,7 @@ void yyerror(char* msg, ...){
 Program = ExtDefList
 ExtDefList = ExtDef ExtDefList | empty
 ExtDef = Specifier ExtDecList SEMI | Specifier SEMI | Specifier FunDec CompSt
+| Specifier FunDec SEMI
 //程序=变量，结构体，函数结合
 ExtDecList = VarDec | VarDec COMMA ExtDecList | empty //简单变量具体定义
 Specifier = TYPE | StructSpecifier //简单变量类型|结构体定义

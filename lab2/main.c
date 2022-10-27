@@ -5,8 +5,6 @@
 extern int yyparse();
 extern void yyrestart(FILE *);
 extern Node *semantic_tree;
-extern AVL_node *symbol_define_table;
-extern AVL_node *symbol_announce_table; //符号表
 
 int main(int argc, char **argv)
 {
