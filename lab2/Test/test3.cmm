@@ -1,0 +1,45 @@
+struct Car {
+  int color;
+  float weight;
+  float color;//15
+};
+struct Museum;
+int func(int t) 
+{ 
+int y;
+return 3.5;//8
+} 
+int func() //4
+{ 
+return 0;
+}
+
+int main()
+{ 
+int i = 0,k;
+float m=4.5;
+int t[3];
+struct Car car;
+int i;//3
+j = i + 1;//1
+inc(i);//2
+i = 3.7;//5
+10 = i;//6
+k=i-m;//7
+func(4,5);//9
+i[0];//10
+	if(i+k>k){
+	float m=6.0;
+	i=3;
+	}
+i(10);//11
+t[m];//12
+i.colo=0;//13
+car.color=0;
+car.height=4;//14
+}
+struct Car{};//16
+struct Name name;//17
+int func(int c);
+
+

@@ -17,7 +17,7 @@ enum Table_kind
 
 typedef struct avl_node
 {
-	ListNode *node;
+	ListNode *node;//记录了这个节点代表的符号
 	//	int num;
 	int cnt; //相同人数的节点个数
 	struct avl_node *lc;
@@ -47,7 +47,8 @@ void print_avl_type(Type *k);
 
 ListNode *avl_search_listnode(AVL_node *k, char *name, enum Kind kind);
 Type *avl_search_type(AVL_node *k, char *name);
-ListNode *search_listnode(enum Table_kind m, char *name, 
-enum Kind kind,bool flag);
+ListNode *search_listnode(enum Table_kind m, char *name,
+						  enum Kind kind, bool flag);
 ListNode *search_all_listnode(enum Table_kind m, char *name, bool flag);
-Type *search_type(enum Table_kind m, char *name,bool flag);
+Type *search_type(enum Table_kind m, char *name, bool flag);
+void check_announce(AVL_node *k, enum Kind kind);

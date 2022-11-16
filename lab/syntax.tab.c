@@ -1604,7 +1604,7 @@ yyreduce:
 
   case 4:
 #line 54 "./syntax.y"
-              {yyval=NULL;}
+              {yyval=new_node(0,"ExtDefList",1,NULL);}
 #line 1609 "./syntax.tab.c"
     break;
 
@@ -1690,7 +1690,7 @@ yyreduce:
 
   case 18:
 #line 76 "./syntax.y"
-              {yyval=NULL;}
+              {yyval=new_node(0,"OptTag",1,NULL);}
 #line 1695 "./syntax.tab.c"
     break;
 
@@ -1781,7 +1781,7 @@ yyvsp[-3],yyvsp[-2],yyvsp[-1],yyvsp[0]);}
 
   case 33:
 #line 101 "./syntax.y"
-              {yyval=NULL;}
+              {yyval=new_node(0,"StmtList",1,NULL);}
 #line 1786 "./syntax.tab.c"
     break;
 
@@ -1854,7 +1854,7 @@ yyvsp[-6],yyvsp[-5],yyvsp[-4],yyvsp[-3],yyvsp[-2],yyvsp[-1],yyvsp[0]);}
 
   case 45:
 #line 116 "./syntax.y"
-              {yyval=NULL;}
+              {yyval=new_node(0,"DefList",1,NULL);}
 #line 1859 "./syntax.tab.c"
     break;
 
@@ -2356,7 +2356,7 @@ ExtDefList = ExtDef ExtDefList | empty
 ExtDef = Specifier ExtDecList SEMI | Specifier SEMI | Specifier FunDec CompSt
 | Specifier FunDec SEMI
 //程序=变量，结构体，函数结合
-ExtDecList = VarDec | VarDec COMMA ExtDecList | empty //简单变量具体定义
+ExtDecList = VarDec | VarDec COMMA ExtDecList//简单变量具体定义
 Specifier = TYPE | StructSpecifier //简单变量类型|结构体定义
 StructSpecifier = STRUCT OptTag LC DefList RC | STRUCT Tag
 OptTag = ID | empty

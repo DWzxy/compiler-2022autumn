@@ -51,7 +51,7 @@ Program : ExtDefList {$$=semantic_tree=new_node(@1.first_line,"Program",1,$1);
 ;
 ExtDefList : ExtDef ExtDefList {$$=new_node(@1.first_line,
 "ExtDefList",2,$1,$2);}
-| /* empty */ {$$=NULL;}
+| /* empty */ {$$=new_node(0,"ExtDefList",1,NULL);}
 ;
 ExtDef : Specifier ExtDecList SEMI {$$=new_node(@1.first_line,
 "ExtDef",3,$1,$2,$3);}
@@ -73,7 +73,7 @@ StructSpecifier : STRUCT OptTag LC DefList RC {$$=new_node(@1.first_line,
 | STRUCT Tag {$$=new_node(@1.first_line,"StructSpecifier",2,$1,$2);}
 ;
 OptTag : ID {$$=new_node(@1.first_line,"OptTag",1,$1);}
-| /* empty */ {$$=NULL;}
+| /* empty */ {$$=new_node(0,"OptTag",1,NULL);}
 ;
 Tag : ID {$$=new_node(@1.first_line,"Tag",1,$1);}
 ;
@@ -98,7 +98,7 @@ CompSt : LC DefList StmtList RC {$$=new_node(@1.first_line,"CompSt",4,
 $1,$2,$3,$4);}
 ;
 StmtList : Stmt StmtList {$$=new_node(@1.first_line,"StmtList",2,$1,$2);}
-| /* empty */ {$$=NULL;}
+| /* empty */ {$$=new_node(0,"StmtList",1,NULL);}
 Stmt : Exp SEMI {$$=new_node(@1.first_line,"Stmt",2,$1,$2);}
 | CompSt {$$=new_node(@1.first_line,"Stmt",1,$1);}
 | RETURN Exp SEMI {$$=new_node(@1.first_line,"Stmt",3,$1,$2,$3);}
@@ -113,7 +113,7 @@ $1,$2,$3,$4,$5,$6,$7);}
 ;
 
 DefList : Def DefList {$$=new_node(@1.first_line,"DefList",2,$1,$2);}
-| /* empty */ {$$=NULL;}
+| /* empty */ {$$=new_node(0,"DefList",1,NULL);}
 ;
 Def : Specifier DecList SEMI {$$=new_node(@1.first_line,"Def",3,$1,$2,$3);}
 | error SEMI {yyerror("wrong expression 7.8",@2.first_line);}
@@ -185,7 +185,7 @@ ExtDefList = ExtDef ExtDefList | empty
 ExtDef = Specifier ExtDecList SEMI | Specifier SEMI | Specifier FunDec CompSt
 | Specifier FunDec SEMI
 //程序=变量，结构体，函数结合
-ExtDecList = VarDec | VarDec COMMA ExtDecList | empty //简单变量具体定义
+ExtDecList = VarDec | VarDec COMMA ExtDecList//简单变量具体定义
 Specifier = TYPE | StructSpecifier //简单变量类型|结构体定义
 StructSpecifier = STRUCT OptTag LC DefList RC | STRUCT Tag
 OptTag = ID | empty

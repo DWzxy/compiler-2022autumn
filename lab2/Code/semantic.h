@@ -37,6 +37,7 @@ typedef struct Type_
         //函数类型信息
         struct
         {
+            int func_line;
             int para_num;
             struct Type_ *func_type;
             struct ListNode_ *para;
@@ -58,7 +59,7 @@ ListNode *create_new_listnode();
 ListNode *new_listnode(char *name, Type *type);
 
 void deal_ExtDef(Node *k);
-ListNode *deal_FunDec(Node *k, Type *type);
+ListNode *deal_FunDec(Node *k, Type *type, bool flag);
 Type *deal_Specifier(Node *k, bool flag);
 Type *deal_StructSpecifier(Node *k, bool flag);
 ListNode *deal_DefList(Node *k, bool flag);
@@ -68,11 +69,11 @@ ListNode *deal_VarList(Node *k);
 void deal_ExtDecList(Node *k, Type *type);
 ListNode *deal_Dec(Node *k, Type *type, bool flag);
 ListNode *deal_VarDec(Node *k, Type *type, bool flag);
+void deal_stmt(Node *k, Type *t);
+ListNode *deal_exp(Node *k);
 
 void read(Node *k);
 void insert_listnode(ListNode *k, AVL_node **table);
-void check_stmt(Node *k, Type *t);
-ListNode *check_exp(Node *k);
 bool type_equal(Type *type_a, Type *type_b);
 bool if_left(Node *k);
 
@@ -89,7 +90,7 @@ bool check_error10(Type *a, int line_num);
 bool check_error11(char *name, int line_num);
 bool check_error12(Type *a, int line_num);
 bool check_error13(ListNode *a, int line_num);
-bool check_error14(ListNode *a, char *name, int line_num);
+bool check_error14(ListNode **a, char *name, int line_num);
 bool check_error15(char *name, int line_num);
 bool check_error16(char *name, int line_num);
 bool check_error17(char *name, int line_num);

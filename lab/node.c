@@ -68,6 +68,8 @@ void print_tree(Node *now, int depth)
 {
     if (now == NULL)
         return;
+    if (now->child_num == 1 && now->child == NULL)
+        return;
     for (int i = 1; i <= depth; i++)
         printf("  ");
     printf("%s", now->name);

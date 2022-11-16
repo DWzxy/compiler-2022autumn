@@ -5,6 +5,7 @@
 extern int yyparse();
 extern void yyrestart(FILE *);
 extern Node *semantic_tree;
+extern int if_over;
 
 int main(int argc, char **argv)
 {
@@ -20,15 +21,17 @@ int main(int argc, char **argv)
         yyrestart(f);
         yyparse();
     }
-table_init();
+    if(!if_over) return 0;
+    table_init();
     read(semantic_tree);
-  /*  printf("\n\n\n\n\n");
-    printf("[[[[announce_table]]]]\n");
-    print_avl_tree(symbol_announce_table);
-    printf("\n\n\n\n\n[[[[define_table]]]]\n");
-    print_avl_tree(symbol_define_table);
-    printf("\n");
-*/
+    check_error18();
+    /*  printf("\n\n\n\n\n");
+      printf("[[[[announce_table]]]]\n");
+      print_avl_tree(symbol_announce_table);
+      printf("\n\n\n\n\n[[[[define_table]]]]\n");
+      print_avl_tree(symbol_define_table);
+      printf("\n");
+  */
 
     return 0;
 }

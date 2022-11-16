@@ -1,0 +1,17 @@
+int a;
+int b,c,d;
+float e;
+int f[20][12][34][78];
+int g,h[1][2],t;
+struct Meal;
+struct Car{
+	int wheel=3,people=5,number=9;
+	int name[30][2];
+	float height;
+}flex,simple,radom;
+int add(struct Car C,int D[2][3]){
+int A;
+float B;
+A=A+1;
+} 
+//float plus(int A,float B);

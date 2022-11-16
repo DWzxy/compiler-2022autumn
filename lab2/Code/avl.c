@@ -325,10 +325,11 @@ ListNode *avl_search_listnode(AVL_node *k, char *name, enum Kind kind)
 	if (k == NULL)
 		return NULL;
 	if (strcmp(k->node->name, name) == 0 &&
-		kind == k->node->type->kind){
-			return copy_listnode(k->node);
-		}
-		
+		kind == k->node->type->kind)
+	{
+		return copy_listnode(k->node);
+	}
+
 	else if (strcmp(name, k->node->name) < 0)
 		return avl_search_listnode(k->lc, name, kind);
 	else
@@ -359,7 +360,9 @@ ListNode *search_listnode(enum Table_kind m, char *name, enum Kind kind, bool fl
 			bottom = define_top;
 		for (int i = define_top; i >= bottom; i--)
 		{
+
 			now = avl_search_listnode(define_stack[i], name, kind);
+			//	printf("now i=%d\n",i);
 			if (now)
 				break;
 		}
@@ -375,10 +378,10 @@ ListNode *search_listnode(enum Table_kind m, char *name, enum Kind kind, bool fl
 				break;
 		}
 	}
-//	        		if(now){
-//		printf("find it !\n");
-//		print_avl_listnode(now);
-//	}
+	//	        		if(now){
+	//		printf("find it !\n");
+	//		print_avl_listnode(now);
+	//	}
 	return now;
 }
 
@@ -388,14 +391,15 @@ ListNode *search_all_listnode(enum Table_kind m, char *name, bool flag)
 	ListNode *tmp2 = search_listnode(m, name, ARRAY, flag);
 	ListNode *tmp3 = search_listnode(m, name, FUNC, flag);
 	ListNode *tmp4 = search_listnode(m, name, STRUCTURE, flag);
-	ListNode*tmp=NULL;
+	ListNode *tmp = NULL;
 	if (tmp1)
-		tmp=tmp1;
+		tmp = tmp1;
 	else if (tmp2)
-		tmp=tmp2;
+		tmp = tmp2;
 	else if (tmp3)
-		tmp=tmp3;
-	else tmp=tmp4;
+		tmp = tmp3;
+	else
+		tmp = tmp4;
 	return tmp;
 }
 
@@ -426,4 +430,21 @@ Type *search_type(enum Table_kind m, char *name, bool flag)
 		}
 	}
 	return now;
+}
+
+void check_announce(AVL_node *k, enum Kind kind)
+{
+	if (k == NULL)
+		return;
+	if (k->node->type->kind == kind)
+	{
+		ListNode *now = search_listnode(define, k->node->name, kind, false);
+		if (now==NULL)
+		{
+			error(18, k->node->type->func.func_line,
+				  "Undefined function", k->node->name);
+		}
+	}
+	check_announce(k->lc, kind);
+	check_announce(k->rc, kind);
 }

@@ -25,7 +25,6 @@ ID {letter}({letter}|{number})*
 RELOP >|<|>=|<=|==|!=
 
 %%
-
 int|float {yylval=new_leaf(yylineno,"TYPE",yytext);
     return TYPE;}
 "struct" {yylval=new_leaf(yylineno,"STRUCT",yytext);

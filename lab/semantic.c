@@ -1,13 +1,9 @@
 #include "semantic.h"
-#include "avl.h"
 #include "node.h"
 
 //#define DEBUG
 
-extern AVL_node *announce_stack[101];
-extern AVL_node *define_stack[101];
-extern int announce_top;
-extern int define_top;
+int semantic_right = 1;
 
 Type *new_type(enum Kind kind)
 {
@@ -95,6 +91,7 @@ ListNode *copy_listnode(ListNode *x)
     ListNode *p = create_new_listnode();
     strcpy(p->name, x->name);
     p->type = copy_type(x->type);
+    p->para_no=x->para_no;
 }
 
 ListNode *create_new_listnode()
@@ -108,6 +105,7 @@ ListNode *new_listnode(char *name, Type *type)
     ListNode *p = create_new_listnode();
     strcpy(p->name, name);
     p->type = copy_type(type);
+    p->para_no = -1; //表明不是函数参数
 }
 
 void deal_ExtDef(Node *k)
@@ -119,28 +117,30 @@ void deal_ExtDef(Node *k)
         Type *type = deal_Specifier(k->child, false);
         if (type == NULL)
             return;
-        ListNode *fun = deal_FunDec(k->child->next, type);
         //注意，已添加，只能改变内部值
         if (strcmp(k->child->next->next->name, "SEMI") == 0)
         { //声明
-            stack_pop();
-            if (!check_error19(fun, k->child->next->line_num))
-                return;
-            insert_listnode(fun, &announce_stack[announce_top]); //添加自己
+            ListNode *fun = deal_FunDec(k->child->next, type, false);
+            fun->type->func.func_line = k->child->next->line_num;
+            if (fun)
+            {
+                stack_pop();
+                if (!check_error19(fun, k->child->next->line_num))
+                    return;
+                insert_listnode(fun, &announce_stack[announce_top]); //添加自己
+            }
         }
         else
         {
             // CompSt = LC DefList StmtList RC 函数具体定义，先声明后使用
+            ListNode *fun = deal_FunDec(k->child->next, type, true);
             if (fun)
             {
                 Node *compst = k->child->next->next;
                 deal_CompSt(compst, type);
                 //解析内部定义
                 stack_pop();
-                insert_listnode(fun, &define_stack[define_top]); //添加自己
             }
-            else
-                stack_pop();
         }
     }
     else if (k->child_num == 3)
@@ -151,19 +151,27 @@ void deal_ExtDef(Node *k)
         deal_ExtDecList(k->child->next, type);
     }
     else
-        deal_Specifier(k->child, false);
+        deal_Specifier(k->child, true);
     return;
 }
 
-ListNode *deal_FunDec(Node *k, Type *type)
+ListNode *deal_FunDec(Node *k, Type *type, bool flag)
 {
-    // FunDec = ID LP VarList RP| ID LP RP //函数及参数列表
-    //   if (!check_error4(k->child->val.char_val, k->child->line_num))
-    //      return NULL;
-    stack_push();
+// FunDec = ID LP VarList RP| ID LP RP //函数及参数列表
+#ifdef DEBUG
+    printf("FUNC %s\n", k->child->val.char_val);
+#endif
+    if (flag)
+    {
+        if (!check_error4(k->child->val.char_val, k->child->line_num))
+            return NULL;
+    }
     Type *funcself = new_type(FUNC); //函数类型
     ListNode *fun = new_listnode(k->child->val.char_val, funcself);
     fun->type->func.func_type = type; //返回值类型
+    if (flag)
+        insert_listnode(fun, &define_stack[define_top]); //添加自己
+    stack_push();
     if (k->child_num == 4)
     { //有参数
         ListNode *now = deal_VarList(k->child->next->next);
@@ -178,7 +186,6 @@ Type *deal_Specifier(Node *k, bool flag)
     Type *now = NULL;
     if (strcmp(k->child->name, "TYPE") == 0) // int|float
     {
-
         now = new_type(BASIC);
         if (strcmp(k->child->val.char_val, "int") == 0)
             now->basic = Basic_int;
@@ -196,20 +203,11 @@ Type *deal_StructSpecifier(Node *k, bool flag)
 {
     // StructSpecifier = STRUCT OptTag LC DefList RC | STRUCT Tag
     Type *list = new_type(STRUCTURE); //结构体成员列表
-    if (strcmp(k->child->next->name, "Tag") == 0)
+    if (k->child_num == 2)
     { // STRUCT Tag
-        if (!flag)
-        {
-            if (!check_error16(k->child->next->child->val.char_val,
-                               k->child->next->child->line_num))
-                return NULL;
-        }
-        else
-        {
-            if (!check_error17(k->child->next->child->val.char_val,
-                               k->child->next->child->line_num))
-                return NULL;
-        }
+        if (!check_error17(k->child->next->child->val.char_val,
+                           k->child->next->child->line_num))
+            return NULL;
         ListNode *tmp = search_listnode(define,
                                         k->child->next->child->val.char_val,
                                         STRUCTURE, false);
@@ -230,11 +228,15 @@ Type *deal_StructSpecifier(Node *k, bool flag)
     else
     { // STRUCT OptTag LC DefList RC
         // OptTag = ID | empty
-        if (strcmp(k->child->next->name, "OptTag") == 0)
+        Node *opttag = k->child->next;
+        if (opttag->child_num != 1 || opttag->child)
         { //有名字
-            if (!check_error16(k->child->next->child->val.char_val,
-                               k->child->next->child->line_num))
-                return NULL;
+            if (flag)
+            {
+                if (!check_error16(k->child->next->child->val.char_val,
+                                   k->child->next->child->line_num))
+                    return NULL;
+            }
             stack_push();
             ListNode *deflist = deal_DefList(k->child->next->next->next, true);
             stack_pop();
@@ -244,9 +246,9 @@ Type *deal_StructSpecifier(Node *k, bool flag)
             insert_listnode(p, &define_stack[define_top]);
         }
         else
-        { // STRUCT LC DefList RC
+        {
             stack_push();
-            ListNode *deflist = deal_DefList(k->child->next->next, true);
+            ListNode *deflist = deal_DefList(k->child->next->next->next, true);
             list->structure = deflist;
             stack_pop();
         }
@@ -258,14 +260,19 @@ ListNode *deal_DefList(Node *k, bool flag)
 { //函数与结构体内部定义，返回参数列表
     // DefList = Def DefList | empty
     // Def = Specifier DecList SEMI//变量声明
+    if (k->child_num == 1 && k->child == NULL)
+        return NULL;
     ListNode *head = NULL;
     ListNode *last = NULL;
     for (Node *i = k; i; i = i->child->next)
     {
+        if (i->child_num == 1 && i->child == NULL)
+            break;
         // DecList = Dec | Dec COMMA DecList
         Type *spe = deal_Specifier(i->child->child, true);
         //注意：函数参数类型可能是结构体，此时要找到之前的定义
-
+        if (spe == NULL)
+            continue;
         for (Node *j = i->child->child->next->child;;
              j = j->next->next->child) //每个变量的名称
         {
@@ -292,22 +299,22 @@ ListNode *deal_DefList(Node *k, bool flag)
 void deal_StmtList(Node *k, Type *t)
 { //函数内部使用
     // StmtList = Stmt StmtList | empty
-    for (Node *i = k; i; i = i->child->next)
+    if (k->child_num == 1 && k->child == NULL)
+        return;
+    for (Node *i = k;; i = i->child->next)
     {
+        if (i->child_num == 1 && i->child == NULL)
+            break;
         Node *stmt = i->child;
-        check_stmt(stmt, t);
+        deal_stmt(stmt, t);
     }
 }
 
 ListNode *deal_CompSt(Node *compst, Type *t)
 {
     // CompSt = LC DefList StmtList RC 函数具体定义，先声明后使用
-    if (strcmp(compst->child->next->name, "DefList") == 0)
-        deal_DefList(compst->child->next, false);
-    if (strcmp(compst->child->next->name, "StmtList") == 0)
-        deal_StmtList(compst->child->next, t);
-    if (strcmp(compst->child->next->next->name, "StmtList") == 0)
-        deal_StmtList(compst->child->next->next, t);
+    deal_DefList(compst->child->next, false);
+    deal_StmtList(compst->child->next->next, t);
 }
 
 ListNode *deal_VarList(Node *k) //函数参数列表
@@ -340,18 +347,18 @@ ListNode *deal_VarList(Node *k) //函数参数列表
 
 void deal_ExtDecList(Node *k, Type *type)
 {
-    // ExtDecList = VarDec | VarDec COMMA ExtDecList | empty
-    if (k == NULL)
+    // ExtDecList = VarDec | VarDec COMMA ExtDecList
+    if (k->child_num == 1 && k->child == NULL)
         return;
     else
     {
-        for (Node *i = k->child;; i = i->next->next->child)
+        for (Node *i = k;; i = i->child->next->next)
         {
             //以逗号隔开的每个简单参数的头
-            ListNode *now = deal_VarDec(i, type, false);
+            ListNode *now = deal_VarDec(i->child, type, false);
             if (now != NULL)
                 insert_listnode(now, &define_stack[define_top]);
-            if (i->next == NULL)
+            if (i->child->next == NULL)
                 break;
         }
     }
@@ -360,14 +367,24 @@ void deal_ExtDecList(Node *k, Type *type)
 ListNode *deal_Dec(Node *k, Type *type, bool flag)
 {
     // Dec = VarDec | VarDec ASSIGNOP Exp
-    ListNode *p = deal_VarDec(k->child, type, flag);
-    if (p == NULL)
+    ListNode *tmp1 = deal_VarDec(k->child, type, flag);
+    if (tmp1 == NULL)
         return NULL;
     if (k->child->next)
     {
+        if (flag)
+            check_error15("", k->child->next->line_num);
+        ListNode *tmp2 = deal_exp(k->child->next->next);
+        if (tmp1 && tmp2)
+        {
+            if (!check_error5(tmp1->type, tmp2->type, k->child->line_num))
+                return NULL;
+            if (!check_error6(k->child, k->child->line_num))
+                return NULL;
+        }
     }
     //   insert_listnode(p, &define_stack[define_top]);
-    return copy_listnode(p);
+    return copy_listnode(tmp1);
 }
 
 ListNode *deal_VarDec(Node *k, Type *type, bool flag)
@@ -397,89 +414,56 @@ ListNode *deal_VarDec(Node *k, Type *type, bool flag)
         if (p == NULL)
             return NULL;
         Type *tmp = p->type;
+        Type *pre = NULL;
         while (tmp->kind == ARRAY)
-            tmp = tmp->array.elem;       //最后一个数组维度
-        Type *now = new_type(tmp->kind); //继承最开头的类型
-        now->array.elem = NULL;
+        {
+            pre = tmp;
+            tmp = tmp->array.elem;
+        }                //最后一个数组维度
+        Type *now = tmp; //继承最开头的类型
+        tmp = new_type(ARRAY);
         tmp->array.size = k->child->next->next->val.int_val;
-        //         printf("[%d]\n", now->array.size);
         tmp->array.elem = now;
-        tmp->kind = ARRAY;
-#ifdef DEBUG
-        for (Type *i = p->type; i; i = i->array.elem)
-            printf("%d  ", i->array.size);
-        printf("\n");
-#endif
+        //         printf("[%d]\n", now->array.size);
+        if (pre == NULL)
+            p->type = tmp;
+        else
+            pre->array.elem = tmp;
         return p;
     }
 }
 
-void read(Node *k)
-{
-    if (k == NULL)
-        return;
-    //    printf("now read %s\n", k->name);
-    if (strcmp(k->name, "ExtDef") == 0)
-        deal_ExtDef(k);
-    for (Node *i = k->child; i; i = i->next)
-    {
-        read(i);
-    }
-}
-
-void insert_listnode(ListNode *k, AVL_node **table)
-{
-#ifdef DEBUG
-    printf("try insert %s\n", k->name);
-#endif
-    Type *now = search_type(define, k->name, true);
-    if (now)
-    {
-#ifdef DEBUG
-        printf("%s already exist\n", k->name);
-#endif
-        return;
-    }
-    else
-    {
-#ifdef DEBUG
-        printf("%s doesn't exist\n", k->name);
-#endif
-        Insert(table, k);
-        //     print_avl_tree(symbol_table);
-    }
-    return;
-}
-
-void check_stmt(Node *k, Type *t)
+void deal_stmt(Node *k, Type *t)
 {
     // Stmt = Exp SEMI| CompSt| RETURN Exp SEMI | IF LP Exp RP Stmt
     //|IF LP Exp RP Stmt ELSE Stmt | WHILE LP Exp RP Stmt //使用
     if (k->child_num == 7)
     { // IF LP Exp RP Stmt ELSE Stmt
-        check_exp(k->child->next->next);
-        check_stmt(k->child->next->next->next->next, t);
-        check_stmt(k->child->next->next->next->next->next->next, t);
+        deal_exp(k->child->next->next);
+        deal_stmt(k->child->next->next->next->next, t);
+        deal_stmt(k->child->next->next->next->next->next->next, t);
     }
     else if (k->child_num == 5)
     {
         // IF LP Exp RP Stmt | WHILE LP Exp RP Stmt
-        check_exp(k->child->next->next);
-        check_stmt(k->child->next->next->next->next, t);
+        deal_exp(k->child->next->next);
+        deal_stmt(k->child->next->next->next->next, t);
     }
     else if (k->child_num == 3)
     {
         // RETURN Exp SEMI
-        ListNode *now = check_exp(k->child->next);
+        ListNode *now = deal_exp(k->child->next);
         if (now)
         {
             if (!check_error8(now->type, t, k->child->line_num))
                 return;
         }
+        else
+            check_error8(NULL, t, k->child->line_num);
     }
     else if (k->child_num == 2)
-        // RETURN Exp SEMI
-        check_exp(k->child);
+        // Exp SEMI
+        deal_exp(k->child);
     else
     {
         stack_push();
@@ -488,14 +472,13 @@ void check_stmt(Node *k, Type *t)
     }
 }
 
-ListNode *check_exp(Node *k)
+ListNode *deal_exp(Node *k)
 { //返回的是运算结果类型
     // Exp = Exp ASSIGNOP Exp| Exp AND Exp | Exp OR Exp
     //| Exp RELOP Exp | Exp PLUS Exp | Exp MINUS Exp
     //| Exp STAR Exp | Exp DIV Exp | LP Exp RP | MINUS Exp
     //| NOT Exp | ID LP Args RP | ID LP RP | Exp LB Exp RB
     //| Exp DOT ID | ID | INT | FLOAT
-
     ListNode *now = (ListNode *)malloc(sizeof(ListNode));
     if (k->child_num == 1)
     { // ID | INT | FLOAT
@@ -517,7 +500,7 @@ ListNode *check_exp(Node *k)
         }
     }
     else if (k->child_num == 2) // NOT Exp | MINUS Exp
-        now = check_exp(k->child->next);
+        now = deal_exp(k->child->next);
     else if (k->child_num == 3)
     { // Exp ASSIGNOP Exp | Exp AND Exp | Exp OR Exp
       //| Exp RELOP Exp | Exp PLUS Exp | Exp MINUS Exp
@@ -525,11 +508,11 @@ ListNode *check_exp(Node *k)
       //| ID LP RP | Exp DOT ID
         ListNode *tmp1 = NULL, *tmp2 = NULL, *tmp3 = NULL;
         if (strcmp(k->child->name, "Exp") == 0)
-            tmp1 = check_exp(k->child);
+            tmp1 = deal_exp(k->child);
         if (strcmp(k->child->next->name, "Exp") == 0)
-            tmp2 = check_exp(k->child->next);
+            tmp2 = deal_exp(k->child->next);
         if (strcmp(k->child->next->next->name, "Exp") == 0)
-            tmp3 = check_exp(k->child->next->next);
+            tmp3 = deal_exp(k->child->next->next);
         if (strcmp(k->child->next->name, "ASSIGNOP") == 0)
         { // Exp ASSIGNOP Exp
             if (tmp1 && tmp3)
@@ -539,11 +522,20 @@ ListNode *check_exp(Node *k)
                 if (!check_error6(k->child, k->child->line_num))
                     return NULL;
             } //////////////
+            else
+                return NULL;
         }
         else if (strcmp(k->child->next->name, "RELOP") == 0)
         { // Exp RELOP Exp
-            now->type = new_type(BASIC);
-            now->type->basic = Basic_int;
+            if (tmp1 && tmp3)
+            {
+                if (!check_error7(tmp1->type, tmp3->type, k->child->line_num))
+                    return NULL;
+                now->type = new_type(BASIC);
+                now->type->basic = Basic_int;
+            }
+            else
+                check_error7(NULL, new_type(BASIC), k->child->line_num);
         }
         else if (strcmp(k->child->name, "ID") == 0)
         { // ID LP RP
@@ -557,22 +549,19 @@ ListNode *check_exp(Node *k)
         }
         else if (strcmp(k->child->name, "LP") == 0)
         { // LP Exp RP
-            now = check_exp(k->child->next);
+            now = deal_exp(k->child->next);
         }
         else if (strcmp(k->child->next->name, "DOT") == 0)
         { // Exp DOT ID
-            now = check_exp(k->child);
+            now = deal_exp(k->child);
             if (!check_error13(now, k->child->line_num))
                 return NULL;
-            if (now->type->structure)
-                now = now->type->structure;
-            else
-                now = now->next;
-            if (!check_error14(now, k->child->next->next->val.char_val,
+            now = now->type->structure;
+            if (!check_error14(&now, k->child->next->next->val.char_val,
                                k->child->line_num))
                 return NULL;
         }
-        if (tmp1 && tmp3)
+        else if (tmp1 && tmp3)
         {
             if (!check_error7(tmp1->type, tmp3->type, k->child->line_num))
                 return NULL;
@@ -581,43 +570,86 @@ ListNode *check_exp(Node *k)
     }
     else
     { // ID LP Args RP | Exp LB Exp RB
-        if (strcmp(k->child->name, "Exp") == 0)
-            check_exp(k->child);
-        if (strcmp(k->child->next->next->name, "Exp") == 0)
-            check_exp(k->child->next->next);
         if (strcmp(k->child->next->next->name, "Args") == 0)
         { // Args = Exp COMMA Args | Exp
+            now = search_listnode(define, k->child->val.char_val, FUNC, false);
             if (!check_error11(k->child->val.char_val, k->child->line_num))
                 return NULL;
             if (!check_error2(k->child->val.char_val, k->child->line_num))
                 return NULL;
-            ListNode *para = search_listnode(define,
-                                             k->child->val.char_val, FUNC, false)
-                                 ->type->func.para;
-            for (Node *i = k->child->next->next;; i = i->child->next->next)
+            ListNode *para = now->type->func.para;
+            Node *i = k->child->next->next;
+            for (;; i = i->child->next->next, para = para->next)
             {
-                ListNode *tmp = check_exp(i->child);
-                //         printf("%d == %d\n",para->type->kind,now->kind);
+                ListNode *tmp = deal_exp(i->child);
                 if (!check_error9(para, tmp->type, k->child->line_num))
                     return NULL;
-                para = para->next;
                 if (i->child_num == 1)
+                {
+                    if (!check_error9(para->next, NULL, k->child->line_num))
+                        return NULL;
                     break;
+                }
+                else if (para == NULL)
+                {
+                    if (!check_error9(NULL, new_type(BASIC), k->child->line_num))
+                        return NULL;
+                    break;
+                }
             }
-            if (!check_error9(para, NULL, k->child->line_num))
-                return NULL;
+            now->type = now->type->func.func_type;
         }
-        if (strcmp(k->child->next->name, "LB") == 0)
+        else if (strcmp(k->child->next->name, "LB") == 0)
         { // Exp LB Exp RB
-            ListNode *tmp = check_exp(k->child);
-            if (!check_error10(tmp->type, k->child->line_num))
+            ListNode *tmp1 = deal_exp(k->child);
+            if (tmp1 == NULL)
                 return NULL;
-            tmp = check_exp(k->child->next->next);
-            if (!check_error12(tmp->type, k->child->next->next->line_num))
+            if (!check_error10(tmp1->type, k->child->line_num))
                 return NULL;
+            ListNode *tmp2 = deal_exp(k->child->next->next);
+            if (!check_error12(tmp2->type, k->child->next->next->line_num))
+                return NULL;
+            now->type = tmp1->type->array.elem;
         }
     }
     return now;
+}
+
+void read(Node *k)
+{
+    if (k == NULL)
+        return;
+    //    printf("now read %s\n", k->name);
+    if (strcmp(k->name, "ExtDef") == 0)
+        deal_ExtDef(k);
+    else
+        for (Node *i = k->child; i; i = i->next)
+        {
+            read(i);
+        }
+}
+
+void insert_listnode(ListNode *k, AVL_node **table)
+{
+#ifdef DEBUG
+    printf("try insert %s\n", k->name);
+#endif
+    Type *now = search_type(define, k->name, true);
+    if (now)
+    {
+#ifdef DEBUG
+        printf("%s already exist\n", k->name);
+#endif
+        return;
+    }
+    else
+    {
+#ifdef DEBUG
+        printf("%s doesn't exist\n", k->name);
+#endif
+        Insert(table, k);
+    }
+    return;
 }
 
 bool type_equal(Type *a, Type *b)
@@ -626,6 +658,8 @@ bool type_equal(Type *a, Type *b)
         return false;
     if (a != NULL && b == NULL)
         return false;
+    if (a == NULL && b == NULL)
+        return true;
     if (a->kind == BASIC && b->kind == BASIC)
     {
         if (a->basic == b->basic)
@@ -635,26 +669,19 @@ bool type_equal(Type *a, Type *b)
     {
         Type *tmpa = a->array.elem;
         Type *tmpb = b->array.elem;
-        while (tmpa && tmpb)
-        {
-            tmpa = tmpa->array.elem;
-            tmpb = tmpb->array.elem;
-        }
-        if (tmpa == NULL && tmpb == NULL)
-            return true; //数组维数相同
+        return type_equal(tmpa, tmpb);
     }
     if (a->kind == STRUCTURE && b->kind == STRUCTURE)
     {
         ListNode *j = b->structure;
-        for (ListNode *i = a->structure; i; i = i->next)
+        ListNode *i = a->structure;
+        for (; i && j; i = i->next, j = j->next)
         {
-            if (j == NULL)
-                return false;
+
             if (!type_equal(i->type, j->type))
                 return false;
-            j = j->next;
         }
-        if (j != NULL)
+        if (i != NULL || j != NULL)
             return false;
         return true;
     } //结构体类型等价
@@ -678,10 +705,12 @@ bool type_equal(Type *a, Type *b)
 
 bool if_left(Node *k)
 {
-    // Exp DOT ID | ID
+    // Exp DOT ID | ID | Exp LB Exp RB
     if (strcmp(k->child->name, "ID") == 0 && k->child_num == 1)
         return true;
     if (k->child_num == 3 && strcmp(k->child->next->name, "DOT") == 0)
+        return if_left(k->child);
+    if (k->child_num == 4 && strcmp(k->child->next->name, "LB") == 0)
         return if_left(k->child);
     return false;
 }
@@ -691,10 +720,12 @@ bool check_error1(char *name, int line_num)
     ListNode *tmp1 = search_listnode(define, name, BASIC, false);
     ListNode *tmp2 = search_listnode(define, name, ARRAY, false);
     ListNode *tmp3 = search_listnode(define, name, STRUCTURE, false);
+    //在已定义的符号表内寻找三个类型的符号，最后一个参数为2.2要求
     if (tmp1 == NULL && tmp2 == NULL && tmp3 == NULL)
     {
         error(1, line_num, "Undefined variable", name);
         return false;
+        //如果没找到说明符号未定义
     }
     return true;
 }
@@ -713,8 +744,10 @@ bool check_error2(char *name, int line_num)
 bool check_error3(char *name, int line_num)
 {
     ListNode *tmp1 = search_listnode(define, name, BASIC, true);
+    //最后一个参数为true，BASIC基本类型作用域可以嵌套，所以只在本层寻找是否有重定义
     ListNode *tmp2 = search_listnode(define, name, ARRAY, true);
-    ListNode *tmp3 = search_listnode(define, name, STRUCTURE, true);
+    ListNode *tmp3 = search_listnode(define, name, STRUCTURE, false);
+    //最后一个参数为false，结构体定义是全局的，所以要从里到外查看是否有重定义
     if (tmp1 != NULL || tmp2 != NULL || tmp3 != NULL)
     {
         error(3, line_num, "Redefined variable", name);
@@ -725,7 +758,7 @@ bool check_error3(char *name, int line_num)
 
 bool check_error4(char *name, int line_num)
 {
-    ListNode *tmp = search_listnode(define, name, FUNC, true);
+    ListNode *tmp = search_listnode(define, name, FUNC, false);
     if (tmp != NULL)
     {
         error(4, line_num, "Rndefined function", name);
@@ -780,8 +813,13 @@ bool check_error9(ListNode *a, Type *b, int line_num)
 {
     if (a == NULL)
     {
-        error(9, line_num, "Function is not applicable for arguments", "");
-        return false;
+        if (b != NULL)
+        {
+            error(9, line_num, "Function is not applicable for arguments", "");
+            return false;
+        }
+        else
+            return true;
     }
     if (!type_equal(a->type, b))
     {
@@ -795,7 +833,7 @@ bool check_error10(Type *now, int line_num)
 {
     if (now->kind != ARRAY)
     {
-        error(10, line_num, "variable is not an array", "");
+        error(10, line_num, "variable", "is not an array");
         return false;
     }
     return true;
@@ -827,7 +865,7 @@ bool check_error12(Type *now, int line_num)
 
 bool check_error13(ListNode *a, int line_num)
 {
-    if (a->next == NULL && a->type->structure == NULL)
+    if (a->type->kind != STRUCTURE)
     {
         error(13, line_num, "Illegal use of '.'", "");
         return false;
@@ -835,27 +873,36 @@ bool check_error13(ListNode *a, int line_num)
     return true;
 }
 
-bool check_error14(ListNode *a, char *name, int line_num)
+bool check_error14(ListNode **a, char *name, int line_num)
 {
-    if (strcmp(a->name, name) != 0)
+    for (; (*a); (*a) = (*a)->next)
     {
-        error(14, line_num, "Non-existent field", name);
-        return false;
+        if (strcmp((*a)->name, name) == 0)
+            return true;
     }
-    return true;
+    error(14, line_num, "Non-existent field", name);
+    return false;
 }
 
 bool check_error15(char *name, int line_num)
 {
-    ListNode *tmp1 = search_listnode(define, name, BASIC, true);
-    ListNode *tmp2 = search_listnode(define, name, ARRAY, true);
-    ListNode *tmp3 = search_listnode(define, name, STRUCTURE, true);
-    if (tmp1 != NULL || tmp2 != NULL || tmp3 != NULL)
+    if (strcmp(name, "") != 0)
     {
-        error(15, line_num, "Redefined field", name);
+        ListNode *tmp1 = search_listnode(define, name, BASIC, true);
+        ListNode *tmp2 = search_listnode(define, name, ARRAY, true);
+        ListNode *tmp3 = search_listnode(define, name, STRUCTURE, true);
+        if (tmp1 != NULL || tmp2 != NULL || tmp3 != NULL)
+        {
+            error(15, line_num, "Redefined field", name);
+            return false;
+        }
+        return true;
+    }
+    else
+    {
+        error(15, line_num, "初始化定义", name);
         return false;
     }
-    return true;
 }
 
 bool check_error16(char *name, int line_num)
@@ -882,6 +929,11 @@ bool check_error17(char *name, int line_num)
     return true;
 }
 
+bool check_error18()
+{
+    check_announce(announce_stack[announce_top], FUNC);
+}
+
 bool check_error19(ListNode *now, int line_num)
 {
     ListNode *tmp1 = search_listnode(define, now->name, FUNC, false);
@@ -905,4 +957,5 @@ bool check_error19(ListNode *now, int line_num)
 void error(int k, int line, char *s, char *y)
 {
     printf("Error type %d at Line %d: %s %s\n", k, line, s, y);
+    semantic_right = 0;
 }
