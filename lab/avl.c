@@ -41,6 +41,12 @@ void stack_pop()
 	define_top--;
 }
 
+void stack_change(AVL_node *k)
+{
+	define_stack[define_top] = k;
+	//只改变定义
+}
+
 int cmp(AVL_node *a, AVL_node *b)
 {
 	return strcmp(a->node->name, b->node->name);
@@ -339,7 +345,9 @@ ListNode *avl_search_listnode(AVL_node *k, char *name, enum Kind kind)
 	if (strcmp(k->node->name, name) == 0 &&
 		kind == k->node->type->kind)
 	{
-		return copy_listnode(k->node);
+	//	printf("find:\n");
+	//	print_avl_listnode(k->node);
+		return k->node;
 	}
 
 	else if (strcmp(name, k->node->name) < 0)
@@ -390,10 +398,8 @@ ListNode *search_listnode(enum Table_kind m, char *name, enum Kind kind, bool fl
 				break;
 		}
 	}
-	//	        		if(now){
-	//		printf("find it !\n");
-	//		print_avl_listnode(now);
-	//	}
+	//if (now == NULL)
+	//	printf("can not find %s\n", name);
 	return now;
 }
 
@@ -412,6 +418,10 @@ ListNode *search_all_listnode(enum Table_kind m, char *name, bool flag)
 		tmp = tmp3;
 	else
 		tmp = tmp4;
+	//			        		if(tmp){
+	//		printf("find %s ! %d\n",tmp->name,tmp->para_no);
+	//		print_avl_listnode(tmp);
+	//	}
 	return tmp;
 }
 

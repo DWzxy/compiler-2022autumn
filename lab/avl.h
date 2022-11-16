@@ -29,6 +29,7 @@ typedef struct avl_node
 void table_init();
 void stack_push();
 void stack_pop();
+void stack_change(AVL_node*k);
 
 // AVL_node* new_avl_node(int num);//创建新节点
 int cmp(AVL_node *a, AVL_node *b);

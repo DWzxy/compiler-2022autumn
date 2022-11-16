@@ -91,7 +91,7 @@ ListNode *copy_listnode(ListNode *x)
     ListNode *p = create_new_listnode();
     strcpy(p->name, x->name);
     p->type = copy_type(x->type);
-    p->para_no=x->para_no;
+    p->para_no = x->para_no;
 }
 
 ListNode *create_new_listnode()
@@ -105,7 +105,7 @@ ListNode *new_listnode(char *name, Type *type)
     ListNode *p = create_new_listnode();
     strcpy(p->name, name);
     p->type = copy_type(type);
-    p->para_no = -1; //表明不是函数参数
+    p->para_no = 0; //表明不是函数参数
 }
 
 void deal_ExtDef(Node *k)
@@ -139,6 +139,7 @@ void deal_ExtDef(Node *k)
                 Node *compst = k->child->next->next;
                 deal_CompSt(compst, type);
                 //解析内部定义
+                compst->symbol = define_stack[define_top]; //将符号表附加到compst
                 stack_pop();
             }
         }
@@ -468,6 +469,8 @@ void deal_stmt(Node *k, Type *t)
     {
         stack_push();
         deal_CompSt(k->child, t);
+        k->child->symbol = define_stack[define_top];
+        //将符号表附加到compst
         stack_pop();
     }
 }
@@ -507,6 +510,9 @@ ListNode *deal_exp(Node *k)
       //| Exp STAR Exp | Exp DIV Exp | LP Exp RP
       //| ID LP RP | Exp DOT ID
         ListNode *tmp1 = NULL, *tmp2 = NULL, *tmp3 = NULL;
+        //    printf("\n[%s %s %s]\n",k->child->name,k->child->next->name,k->child->next->next->name);
+   //     for (int i = define_top; i >= 0; i--)
+    //        print_avl_tree(define_stack[i]);
         if (strcmp(k->child->name, "Exp") == 0)
             tmp1 = deal_exp(k->child);
         if (strcmp(k->child->next->name, "Exp") == 0)
@@ -549,7 +555,7 @@ ListNode *deal_exp(Node *k)
         }
         else if (strcmp(k->child->name, "LP") == 0)
         { // LP Exp RP
-            now = deal_exp(k->child->next);
+            now = tmp2;
         }
         else if (strcmp(k->child->next->name, "DOT") == 0)
         { // Exp DOT ID
@@ -572,20 +578,25 @@ ListNode *deal_exp(Node *k)
     { // ID LP Args RP | Exp LB Exp RB
         if (strcmp(k->child->next->next->name, "Args") == 0)
         { // Args = Exp COMMA Args | Exp
-            now = search_listnode(define, k->child->val.char_val, FUNC, false);
             if (!check_error11(k->child->val.char_val, k->child->line_num))
                 return NULL;
             if (!check_error2(k->child->val.char_val, k->child->line_num))
                 return NULL;
+            now = search_listnode(define, k->child->val.char_val, FUNC, false);
+            //             printf("NOW = :\n");
+            //             print_avl_listnode(now);
             ListNode *para = now->type->func.para;
             Node *i = k->child->next->next;
             for (;; i = i->child->next->next, para = para->next)
             {
                 ListNode *tmp = deal_exp(i->child);
+
                 if (!check_error9(para, tmp->type, k->child->line_num))
                     return NULL;
+
                 if (i->child_num == 1)
                 {
+
                     if (!check_error9(para->next, NULL, k->child->line_num))
                         return NULL;
                     break;
@@ -597,7 +608,7 @@ ListNode *deal_exp(Node *k)
                     break;
                 }
             }
-            now->type = now->type->func.func_type;
+            now = new_listnode("", now->type->func.func_type);
         }
         else if (strcmp(k->child->next->name, "LB") == 0)
         { // Exp LB Exp RB
@@ -627,6 +638,8 @@ void read(Node *k)
         {
             read(i);
         }
+    //  if (strcmp(k->name, "Program") == 0)
+    //      k->symbol = define_stack[define_top]; //所有全局变量
 }
 
 void insert_listnode(ListNode *k, AVL_node **table)
@@ -848,6 +861,12 @@ bool check_error11(char *name, int line_num)
     if ((tmp1 != NULL || tmp2 != NULL || tmp3 != NULL) && (tmp == NULL))
     {
         error(11, line_num, name, "is not a function");
+        if (tmp1 != NULL)
+            printf("name is a basic\n"), print_avl_listnode(tmp1);
+        if (tmp2 != NULL)
+            printf("name is a array\n"), print_avl_listnode(tmp2);
+        if (tmp3 != NULL)
+            printf("name is a structure\n"), print_avl_listnode(tmp3);
         return false;
     }
     return true;

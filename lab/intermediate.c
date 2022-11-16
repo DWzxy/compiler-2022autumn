@@ -5,9 +5,9 @@
 #define SIZE 4
 
 InterCode *intercode_head = NULL;
-int label_count = 0; //标号数目
-int tmp_count = 0;   //临时变量数目
-int para_count = 0;  //函数参数数目
+int label_count = 1; //标号数目
+int tmp_count = 1;   //临时变量数目
+int para_count = 1;  //函数参数数目
 
 void trans_init()
 {
@@ -198,11 +198,24 @@ void print_intercode(InterCode *k)
         printf(" ");
         print_operand(k->binop.op2);
     }
-    else if (kind == CALL_in)
+    else if (kind == CALL_in) //单独考虑read和write
     {
-        print_operand(k->binop.op1);
-        printf(" := CALL ");
-        print_operand(k->binop.op2);
+        if (strcmp(k->binop.op2->name, "read") == 0)
+        {
+            printf("read ");
+            print_operand(k->binop.op1);
+        }
+        else if (strcmp(k->binop.op2->name, "write") == 0)
+        {
+            printf("write ");
+            print_operand(k->binop.op1);
+        }
+        else
+        {
+            print_operand(k->binop.op1);
+            printf(" := CALL ");
+            print_operand(k->binop.op2);
+        }
     }
     // triop
     else if (kind == PLUS_in)
@@ -284,7 +297,9 @@ void trans_ExtDef(Node *k)
     // Specifier FunDec CompSt | Specifier FunDec SEMI
     if (strcmp(k->child->next->name, "FunDec") == 0)
     {
-        trans_FunDec(k->child->next); // push在此
+        stack_push();
+        stack_change(k->child->next->next->symbol); //将符号表填回
+        trans_FunDec(k->child->next);
         if (strcmp(k->child->next->next->name, "CompSt") == 0)
             // CompSt = LC DefList StmtList RC 函数具体定义，先声明后使用
             trans_CompSt(k->child->next->next);
@@ -302,7 +317,6 @@ void trans_FunDec(Node *k)
     // FunDec = ID LP VarList RP| ID LP RP //函数及参数列表
     Operand *func = new_function(k->child->val.char_val);
     new_intercode(FUNCTION_in, NULL, func, NULL, NULL);
-    stack_push();
     if (k->child_num == 4)
     { //有参数
         trans_VarList(k->child->next->next);
@@ -319,8 +333,6 @@ void trans_VarList(Node *k)
         // Specifier VarDec
         ListNode *p = trans_VarDec(i->child->next);
         p->para_no = para_count++; //记录这是第几个参数
-        insert_listnode(p, &define_stack[define_top]);
-
         Operand *param = new_para();
         param->value = p->para_no;
         new_intercode(PARAM_in, NULL, param, NULL, NULL);
@@ -388,7 +400,6 @@ void trans_Dec(Node *k)
 {
     // Dec = VarDec | VarDec ASSIGNOP Exp
     ListNode *p = trans_VarDec(k->child);
-    insert_listnode(p, &define_stack[define_top]);
     Operand *name = new_varible(p->name);
     if (p->type->kind == ARRAY || p->type->kind == STRUCTURE)
     {
@@ -408,31 +419,11 @@ ListNode *trans_VarDec(Node *k)
     // VarDec = ID | VarDec LB INT RB
     if (strcmp(k->child->name, "ID") == 0)
     { // ID头
-        Type *type = new_type(BASIC);
-        ListNode *now = new_listnode(k->child->val.char_val, type);
+        ListNode *now = search_all_listnode(define, k->child->val.char_val, false);
         return now; //数组
     }
     else
-    {                                         //数组后半部分
-        ListNode *p = trans_VarDec(k->child); //头节点，也就是TYPE
-        Type *tmp = p->type;
-        Type *pre = NULL;
-        while (tmp->kind == ARRAY)
-        {
-            pre = tmp;
-            tmp = tmp->array.elem;
-        }                //最后一个数组维度
-        Type *now = tmp; //继承最开头的类型
-        tmp = new_type(ARRAY);
-        tmp->array.size = k->child->next->next->val.int_val;
-        tmp->array.elem = now;
-        //         printf("[%d]\n", now->array.size);
-        if (pre == NULL)
-            p->type = tmp;
-        else
-            pre->array.elem = tmp;
-        return p;
-    }
+        return trans_VarDec(k->child);
 }
 
 void trans_stmt(Node *k)
@@ -494,7 +485,10 @@ void trans_stmt(Node *k)
         trans_exp(k->child);
     else
     {
+        stack_push();
+        stack_change(k->child->symbol);
         trans_CompSt(k->child);
+        stack_pop();
     }
 }
 
@@ -530,9 +524,9 @@ Operand *trans_exp(Node *k)
             //不能直接返回名称，因为函数参数名已重置
             ListNode *tmp = search_all_listnode(define,
                                                 k->child->val.char_val, false);
-            if (tmp->para_no == -1)
+            if (tmp->para_no == 0)
             {
-                now = new_varible(k->child->val.char_val);
+                now = new_varible(tmp->name);
 #ifdef DEBUG
                 printf("[ID %s]\n", now->name);
 #endif
@@ -624,10 +618,12 @@ Operand *trans_exp(Node *k)
     { // ID LP Args RP | Exp LB Exp RB
         if (strcmp(k->child->next->next->name, "Args") == 0)
         {
-            trans_arg(k->child->next->next);
+            Operand *arg=trans_arg(k->child->next->next);
             now = new_tmp();
             Operand *func = new_function(k->child->val.char_val);
-            new_intercode(CALL_in, NULL, now, func, NULL);
+            if(strcmp(func->name,"write")==0)
+                new_intercode(CALL_in, NULL, arg, func, NULL);
+            else new_intercode(CALL_in, NULL, now, func, NULL);
         }
         else if (strcmp(k->child->next->name, "LB") == 0)
         { // Exp LB Exp RB
@@ -636,13 +632,14 @@ Operand *trans_exp(Node *k)
     return now;
 }
 
-void trans_arg(Node *k)
+Operand *trans_arg(Node *k)
 {
     // Args = Exp COMMA Args | Exp
     if (k->child_num > 1)
         trans_arg(k->child->next->next);
     Operand *args = trans_exp(k->child);
     new_intercode(ARG_in, NULL, args, NULL, NULL);
+    return args;
 }
 
 void trans_cond(Node *k, Operand *true_label, Operand *false_label)
@@ -687,6 +684,8 @@ void trans_cond(Node *k, Operand *true_label, Operand *false_label)
 
 void trans_read(Node *k)
 {
+    if (strcmp(k->name, "Program") == 0)
+        stack_change(k->symbol); //添加全局变量
     if (k == NULL)
         return;
     //    printf("now read %s\n", k->name);

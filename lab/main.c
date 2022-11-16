@@ -31,22 +31,15 @@ int main(int argc, char **argv)
     table_init();
     read(semantic_tree); 
     check_error18();
-    printf("semantic over.\n");
+    printf("[[[semantic over.]]]\n\n\n");
 
 //中间代码生成
     if (semantic_right)
     {
         trans_read(semantic_tree);
-        printf("interdiate over.\n");
+        printf("[[[interdiate over.]]]\n\n\n");
  //       print_all_intercode();
     }
-    /*  printf("\n\n\n\n\n");
-      printf("[[[[announce_table]]]]\n");
-      print_avl_tree(symbol_announce_table);
-      printf("\n\n\n\n\n[[[[define_table]]]]\n");
-      print_avl_tree(symbol_define_table);
-      printf("\n");
-  */
 
     return 0;
 }

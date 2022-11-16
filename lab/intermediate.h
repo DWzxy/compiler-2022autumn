@@ -106,7 +106,7 @@ void trans_Dec(Node *k);
 ListNode *trans_VarDec(Node *k);
 void trans_stmt(Node *k);
 Operand *trans_exp(Node *k);
-void trans_arg(Node *k);
+Operand *trans_arg(Node *k);
 void trans_cond(Node *k, Operand *true_label, Operand *false_label);
 
 void trans_read(Node *k);

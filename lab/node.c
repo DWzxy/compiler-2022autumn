@@ -28,6 +28,7 @@ Node *new_leaf(int line_num, char *name, char *text)
     }
     now->child = NULL;
     now->next = NULL;
+    now->symbol=NULL;
     return now;
 }
 
@@ -41,6 +42,7 @@ Node *new_node(int line_num, char *name, int para_num, ...)
     now->if_token = false;
     now->child = NULL;
     now->next = NULL;
+    now->symbol=NULL;
 
     va_list args;
     va_start(args, para_num);
