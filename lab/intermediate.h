@@ -8,7 +8,6 @@ typedef struct ListNode_ ListNode;
 
 enum Operand_kind
 {
-    VARIABLE_operand,
     CONSTANT_operand,
     TMP_operand,
     PARA_operand,
@@ -42,15 +41,16 @@ enum Intercode_kind
 
 typedef struct Operand_
 {
-    enum Operand_kind kind; //不同的类型，如立即数，变量，函数
-    enum Operand_type
+    enum Operand_kind kind; //不同的类型，如立即数，参数，函数
+    enum Operand_type       //是普通操作数还是取地址，取值
     {
         Normal,
         Address,
         Star
-    } type; //是普通操作数还是取地址，取值
+    } type;
     char name[30];
     int value;
+    Type *variable; //对应的变量
 } Operand;
 
 typedef struct InterCode_
@@ -81,14 +81,14 @@ typedef struct InterCode_
 
 void trans_init();
 void insert_intercode(InterCode *k);
+void remove_intercode(InterCode*k);
 Operand *new_operand(enum Operand_kind kind, int type, char *name);
 void new_intercode(enum Intercode_kind kind, Operand *res,
                    Operand *op1, Operand *op2, Operand *op3);
 Operand *new_label();
 Operand *new_tmp();
 Operand *new_para();
-Operand *new_constant();
-Operand *new_varible(char *name);
+Operand *new_constant(int k);
 Operand *new_function(char *name);
 void print_operand(Operand *k);
 void print_intercode(InterCode *k);
@@ -110,7 +110,6 @@ Operand *trans_arg(Node *k);
 void trans_cond(Node *k, Operand *true_label, Operand *false_label);
 
 void trans_read(Node *k);
-
-extern bool type_equal(Type *type_a, Type *type_b);
-extern bool if_left(Node *k);
-extern void error(int k, int line, char *s, char *y);
+Operand *copy_operand(Operand *k);
+char *para_name(int k);
+void clear();

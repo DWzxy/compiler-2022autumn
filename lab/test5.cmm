@@ -1,3 +1,15 @@
+int f(int k){
+struct Car{
+int wheel[4];
+int height;
+}car;
+int t[10][12][2];
+t[7][2*3][1]=9;
+car.height=187;
+car.wheel[3]=4;
+return 0;
+}
+
 int fact(int n)
 { if (n == 1)
 return n;

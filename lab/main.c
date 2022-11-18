@@ -12,6 +12,8 @@ extern int semantic_right; //符号分析是否正确
 int main(int argc, char **argv)
 {
     //词法语法分析
+    if (argc > 2)
+        freopen(argv[2], "w", stdout);
     if (argc > 1)
     {
 
@@ -24,23 +26,24 @@ int main(int argc, char **argv)
         yyrestart(f);
         yyparse();
     }
+
     if (!if_over)
         return 0;
 
     //符号错误检查
     table_init();
-    read(semantic_tree); 
+    read(semantic_tree);
     check_error18();
-    printf("[[[semantic over.]]]\n\n\n");
+    //   printf("[[[semantic over.]]]\n\n\n");
 
-//中间代码生成
+    //中间代码生成
     if (semantic_right)
     {
+        trans_init();
         trans_read(semantic_tree);
-        printf("[[[interdiate over.]]]\n\n\n");
- //       print_all_intercode();
+        //     printf("[[[interdiate over.]]]\n\n\n");
+   //     print_all_intercode();
     }
-
     return 0;
 }
 

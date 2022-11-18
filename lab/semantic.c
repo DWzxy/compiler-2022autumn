@@ -511,8 +511,8 @@ ListNode *deal_exp(Node *k)
       //| ID LP RP | Exp DOT ID
         ListNode *tmp1 = NULL, *tmp2 = NULL, *tmp3 = NULL;
         //    printf("\n[%s %s %s]\n",k->child->name,k->child->next->name,k->child->next->next->name);
-   //     for (int i = define_top; i >= 0; i--)
-    //        print_avl_tree(define_stack[i]);
+        //     for (int i = define_top; i >= 0; i--)
+        //        print_avl_tree(define_stack[i]);
         if (strcmp(k->child->name, "Exp") == 0)
             tmp1 = deal_exp(k->child);
         if (strcmp(k->child->next->name, "Exp") == 0)
@@ -527,6 +527,7 @@ ListNode *deal_exp(Node *k)
                     return NULL;
                 if (!check_error6(k->child, k->child->line_num))
                     return NULL;
+                now = tmp1;
             } //////////////
             else
                 return NULL;
@@ -587,10 +588,13 @@ ListNode *deal_exp(Node *k)
             //             print_avl_listnode(now);
             ListNode *para = now->type->func.para;
             Node *i = k->child->next->next;
+            //         printf("check function %s\n", now->name);
             for (;; i = i->child->next->next, para = para->next)
             {
                 ListNode *tmp = deal_exp(i->child);
-
+                //        printf("now compare\n");
+                //        print_avl_listnode(para);
+                //        print_avl_listnode(tmp);
                 if (!check_error9(para, tmp->type, k->child->line_num))
                     return NULL;
 

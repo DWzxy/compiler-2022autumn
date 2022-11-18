@@ -5,25 +5,46 @@
 #define SIZE 4
 
 InterCode *intercode_head = NULL;
+InterCode *intercode_tail = NULL;
 int label_count = 1; //标号数目
 int tmp_count = 1;   //临时变量数目
 int para_count = 1;  //函数参数数目
 
+Operand *zero;
+Operand *one;
+Operand *size;
+
 void trans_init()
 {
+    zero = new_constant(0);
+    one = new_constant(1);
+    size = new_constant(SIZE);
 }
 
 void insert_intercode(InterCode *k)
 {
     if (intercode_head == NULL)
-        intercode_head = k;
+        intercode_head = intercode_tail = k;
     else
     {
-        intercode_head->pre = NULL;
-        k->next = intercode_head;
-        intercode_head = k;
+        intercode_tail->next = k;
+        k->pre = intercode_tail;
+        intercode_tail = k;
     }
     print_intercode(k);
+}
+
+void remove_intercode(InterCode *k)
+{
+    if (k == intercode_head)
+        intercode_head = k->next;
+    else if (k == intercode_tail)
+        intercode_tail = k->pre;
+    else
+    {
+        k->pre->next = k->next;
+        k->next->pre = k->pre;
+    }
 }
 
 Operand *new_operand(enum Operand_kind kind, int type, char *name)
@@ -32,11 +53,8 @@ Operand *new_operand(enum Operand_kind kind, int type, char *name)
     strcpy(p->name, "");
     p->kind = kind;
     p->type = type;
-    if (kind == VARIABLE_operand)
-    {
-        strcpy(p->name, name);
-    }
-    else if (kind == CONSTANT_operand)
+    p->variable = NULL;
+    if (kind == CONSTANT_operand)
     {
     }
     else if (kind == TMP_operand)
@@ -103,14 +121,11 @@ Operand *new_para()
     return new_operand(PARA_operand, Normal, "");
 }
 
-Operand *new_constant()
+Operand *new_constant(int k)
 {
-    return new_operand(CONSTANT_operand, Normal, "");
-}
-
-Operand *new_varible(char *name)
-{
-    return new_operand(VARIABLE_operand, Normal, name);
+    Operand *now = new_operand(CONSTANT_operand, Normal, "");
+    now->value = k;
+    return now;
 }
 
 Operand *new_function(char *name)
@@ -126,14 +141,14 @@ void print_operand(Operand *k)
         printf("*");
 
     int kind = k->kind;
-    if (kind == VARIABLE_operand || kind == FUNCTION_operand)
+    if (kind == FUNCTION_operand)
         printf("%s", k->name);
     else if (kind == CONSTANT_operand)
         printf("#%d", k->value);
     else if (kind == TMP_operand)
-        printf("tmp%d", k->value);
+        printf("t%d", k->value);
     else if (kind == PARA_operand)
-        printf("v%d", k->value);
+        printf("v%d", abs(k->value));
     else if (kind == LABEL_operand)
         printf("label%d", k->value);
 }
@@ -195,19 +210,19 @@ void print_intercode(InterCode *k)
     {
         printf("DEC ");
         print_operand(k->binop.op1);
-        printf(" ");
-        print_operand(k->binop.op2);
+        printf(" %d", k->binop.op2->value);
+        //只能单独打印，因为DEC中的常数前不加#
     }
     else if (kind == CALL_in) //单独考虑read和write
     {
         if (strcmp(k->binop.op2->name, "read") == 0)
         {
-            printf("read ");
+            printf("READ ");
             print_operand(k->binop.op1);
         }
         else if (strcmp(k->binop.op2->name, "write") == 0)
         {
-            printf("write ");
+            printf("WRITE ");
             print_operand(k->binop.op1);
         }
         else
@@ -286,6 +301,7 @@ int size_of(Type *k)
         int size = 0;
         for (ListNode *i = k->structure; i; i = i->next)
             size += size_of(i->type);
+        return size;
     }
     else if (k->kind == FUNC)
         return 0;
@@ -332,7 +348,8 @@ void trans_VarList(Node *k)
         //每一个参数定义
         // Specifier VarDec
         ListNode *p = trans_VarDec(i->child->next);
-        p->para_no = para_count++; //记录这是第几个参数
+        p->para_no = -para_count++; //记录这是第几个参数
+        //负数代表是函数参数，自己就是地址
         Operand *param = new_para();
         param->value = p->para_no;
         new_intercode(PARAM_in, NULL, param, NULL, NULL);
@@ -400,17 +417,18 @@ void trans_Dec(Node *k)
 {
     // Dec = VarDec | VarDec ASSIGNOP Exp
     ListNode *p = trans_VarDec(k->child);
-    Operand *name = new_varible(p->name);
+    p->para_no = para_count++; //记录这是第几个参数
+    Operand *tmp = new_para();
+    tmp->value = p->para_no;
     if (p->type->kind == ARRAY || p->type->kind == STRUCTURE)
     {
-        Operand *size = new_constant();
-        size->value = size_of(p->type);
-        new_intercode(DEC_in, NULL, name, size, NULL);
+        Operand *size = new_constant(size_of(p->type));
+        new_intercode(DEC_in, NULL, tmp, size, NULL);
     }
     if (k->child->next && strcmp(k->child->next->name, "ASSIGNOP") == 0)
     {
         Operand *tmp2 = trans_exp(k->child->next->next);
-        new_intercode(ASSIGN_in, NULL, name, tmp2, NULL);
+        new_intercode(ASSIGN_in, NULL, tmp, tmp2, NULL);
     }
 }
 
@@ -492,8 +510,8 @@ void trans_stmt(Node *k)
     }
 }
 
-Operand *trans_exp(Node *k)
-{ //返回的是一个操作符（临时变量）
+Operand *trans_exp(Node *k) // if_right表示是否是右值
+{                           //返回的是一个操作符（临时变量）
     // Exp = Exp ASSIGNOP Exp| Exp AND Exp | Exp OR Exp
     //| Exp RELOP Exp | Exp PLUS Exp | Exp MINUS Exp
     //| Exp STAR Exp | Exp DIV Exp | LP Exp RP | MINUS Exp
@@ -504,8 +522,7 @@ Operand *trans_exp(Node *k)
     { // ID | INT | FLOAT
         if (strcmp(k->child->name, "INT") == 0)
         {
-            now = new_constant();
-            now->value = k->child->val.int_val;
+            now = new_constant(k->child->val.int_val);
 #ifdef DEBUG
             printf("[INT %d]\n", now->value);
 #endif
@@ -513,8 +530,7 @@ Operand *trans_exp(Node *k)
         else if (strcmp(k->child->name, "FLOAT") == 0)
         {
             //好像这次没有浮点数
-            now = new_constant();
-            now->value = 0;
+            now = zero;
 #ifdef DEBUG
             printf("[ERROR: FLOAT %f]\n", k->child->val.float_val);
 #endif
@@ -524,18 +540,16 @@ Operand *trans_exp(Node *k)
             //不能直接返回名称，因为函数参数名已重置
             ListNode *tmp = search_all_listnode(define,
                                                 k->child->val.char_val, false);
-            if (tmp->para_no == 0)
-            {
-                now = new_varible(tmp->name);
 #ifdef DEBUG
-                printf("[ID %s]\n", now->name);
+            printf("[ID %s]\n", now->name);
 #endif
-            }
+            now = new_para();
+            now->value = tmp->para_no;
+            now->variable = tmp->type; //附加变量
+            if (now->variable->kind == BASIC || tmp->para_no <= 0)
+                now->type = Normal; //获得的是变量的地址
             else
-            {
-                now = new_para();
-                now->value = tmp->para_no;
-            }
+                now->type = Address;
         }
     }
     else if (k->child_num == 2)
@@ -543,14 +557,30 @@ Operand *trans_exp(Node *k)
         // NOT Exp | MINUS Exp
         if (strcmp(k->child->name, "NOT") == 0)
         {
+            now = new_tmp();
+            // x=-y -> x=0-y
+            Operand *true_label = new_label();
+            Operand *false_label = new_label();
+            new_intercode(ASSIGN_in, NULL, now, zero, NULL);
+            trans_cond(k, true_label, false_label);
+            new_intercode(LABEL_in, NULL, true_label, NULL, NULL);
+            new_intercode(ASSIGN_in, NULL, now, one, NULL);
+            new_intercode(LABEL_in, NULL, false_label, NULL, NULL);
         }
         else
         {
-            Operand *exp = trans_exp(k->child->next);
-            Operand *zero = new_constant();
-            zero->value = 0; // x=-y -> x=0-y
-            now = new_tmp();
-            new_intercode(MINUS_in, now, zero, exp, NULL);
+            if (strcmp(k->child->next->child->name, "INT") == 0)
+            {
+                //特殊情况：MINUS INT 负数
+                now = new_constant(-k->child->next->child->val.int_val);
+            }
+            else
+            {
+                Operand *exp = trans_exp(k->child->next);
+                // x=-y -> x=0-y
+                now = new_tmp();
+                new_intercode(MINUS_in, now, zero, exp, NULL);
+            }
         }
     }
     else if (k->child_num == 3)
@@ -559,14 +589,10 @@ Operand *trans_exp(Node *k)
       //| Exp STAR Exp | Exp DIV Exp | LP Exp RP
       //| ID LP RP | Exp DOT ID
         Operand *tmp1 = NULL, *tmp2 = NULL, *tmp3 = NULL;
-        if (strcmp(k->child->name, "Exp") == 0)
-            tmp1 = trans_exp(k->child);
-        if (strcmp(k->child->next->name, "Exp") == 0)
-            tmp2 = trans_exp(k->child->next);
-        if (strcmp(k->child->next->next->name, "Exp") == 0)
-            tmp3 = trans_exp(k->child->next->next);
         if (strcmp(k->child->next->name, "ASSIGNOP") == 0)
         { // Exp ASSIGNOP Exp
+            tmp1 = trans_exp(k->child);
+            tmp3 = trans_exp(k->child->next->next);
             now = tmp1;
             new_intercode(ASSIGN_in, NULL, now, tmp3, NULL);
         }
@@ -575,6 +601,8 @@ Operand *trans_exp(Node *k)
                  strcmp(k->child->next->name, "STAR") == 0 ||
                  strcmp(k->child->next->name, "DIV") == 0)
         { //四则运算
+            tmp1 = trans_exp(k->child);
+            tmp3 = trans_exp(k->child->next->next);
             now = new_tmp();
             if (strcmp(k->child->next->name, "PLUS") == 0)
                 new_intercode(PLUS_in, now, tmp1, tmp3, NULL);
@@ -593,24 +621,44 @@ Operand *trans_exp(Node *k)
         }
         else if (strcmp(k->child->name, "LP") == 0)
         { // LP Exp RP
+            tmp2 = trans_exp(k->child->next);
             now = tmp2;
         }
         else if (strcmp(k->child->next->name, "DOT") == 0)
-        { // Exp DOT ID
+        {                                        // Exp DOT ID
+            Operand *stru = trans_exp(k->child); //获取前面的结构体
+            Operand *tmp = new_tmp();
+            new_intercode(ASSIGN_in, NULL, tmp, stru, NULL); //获取结构体的地址
+            char *name = k->child->next->next->val.char_val; //成员名字
+            int size = 0;
+            for (ListNode *i = stru->variable->structure; i; i = i->next)
+            {
+                //遍历所有成员
+                if (strcmp(i->name, name) == 0)
+                {
+                    new_intercode(PLUS_in, tmp, tmp, new_constant(size), NULL);
+                    tmp->variable = i->type; //要附加变量！
+                    break;
+                }
+                size += size_of(i->type);
+            }
+            now = copy_operand(tmp);
+            if (now->variable->kind == ARRAY || now->variable->kind == STRUCTURE)
+                now->type = Normal;
+            else
+                now->type = Star;
         }
         else
         {
             // Exp RELOP Exp | Exp AND Exp | Exp OR Exp
             now = new_tmp();
-            Operand *zero = new_constant();
-            zero->value = 0; // x=-y -> x=0-y
+            // x=-y -> x=0-y
             Operand *true_label = new_label();
             Operand *false_label = new_label();
             new_intercode(ASSIGN_in, NULL, now, zero, NULL);
             trans_cond(k, true_label, false_label);
             new_intercode(LABEL_in, NULL, true_label, NULL, NULL);
-            zero->value = 1;
-            new_intercode(ASSIGN_in, NULL, now, zero, NULL);
+            new_intercode(ASSIGN_in, NULL, now, one, NULL);
             new_intercode(LABEL_in, NULL, false_label, NULL, NULL);
         }
     }
@@ -618,15 +666,47 @@ Operand *trans_exp(Node *k)
     { // ID LP Args RP | Exp LB Exp RB
         if (strcmp(k->child->next->next->name, "Args") == 0)
         {
-            Operand *arg=trans_arg(k->child->next->next);
-            now = new_tmp();
             Operand *func = new_function(k->child->val.char_val);
-            if(strcmp(func->name,"write")==0)
+            if (strcmp(func->name, "write") == 0)
+            {
+                Operand *arg = trans_exp(k->child->next->next->child);
                 new_intercode(CALL_in, NULL, arg, func, NULL);
-            else new_intercode(CALL_in, NULL, now, func, NULL);
+            }
+            else
+            {
+                Operand *arg = trans_arg(k->child->next->next);
+                now = new_tmp();
+                new_intercode(CALL_in, NULL, now, func, NULL);
+            }
         }
         else if (strcmp(k->child->next->name, "LB") == 0)
-        { // Exp LB Exp RB
+        {
+            // Exp LB Exp RB
+            Operand *Array = trans_exp(k->child);
+            //获取第一个exp对应的数组
+            Operand *para = trans_exp(k->child->next->next);
+            //获取数组参数
+            Operand *tmp = new_tmp(); //记录乘积
+            now = new_tmp();
+            now->variable = Array->variable->array.elem;
+            //处理这一节数组
+            //      if (Array->type == Address) //第一节
+            //           new_intercode(ASSIGN_in, NULL, now, Array, NULL);
+            new_intercode(STAR_in, tmp, para,
+                          new_constant(size_of(now->variable)),
+                          NULL); //这一个维度的宽度
+            new_intercode(PLUS_in, now, Array, tmp, NULL);
+            //加上这一维度的空间
+            if (now->variable->array.size == 0)
+            {
+                //最后一个维度，可能也是第一个
+                Operand *addr = copy_operand(now);
+                now = addr; //最后再变回取值
+                if (now->variable->kind == ARRAY || now->variable->kind == STRUCTURE)
+                    now->type = Normal;
+                else
+                    now->type = Star;
+            }
         }
     }
     return now;
@@ -638,7 +718,9 @@ Operand *trans_arg(Node *k)
     if (k->child_num > 1)
         trans_arg(k->child->next->next);
     Operand *args = trans_exp(k->child);
-    new_intercode(ARG_in, NULL, args, NULL, NULL);
+    Operand *tmp = copy_operand(args);
+    tmp->type = Normal; //传入的都是名字
+    new_intercode(ARG_in, NULL, tmp, NULL, NULL);
     return args;
 }
 
@@ -666,7 +748,7 @@ void trans_cond(Node *k, Operand *true_label, Operand *false_label)
     else if (k->child_num == 3 && strcmp(k->child->next->name, "OR") == 0)
     {
         Operand *false_1 = new_label();
-        trans_cond(k->child, true_label, false_label);
+        trans_cond(k->child, true_label, false_1);
         new_intercode(LABEL_in, NULL, false_1, NULL, NULL);
         trans_cond(k->child->next->next, true_label, false_label);
     }
@@ -676,7 +758,6 @@ void trans_cond(Node *k, Operand *true_label, Operand *false_label)
     {
         Operand *exp = trans_exp(k);
         Operand *relop = new_varible("!=");
-        Operand *zero = new_constant();
         new_intercode(IF_in, relop, exp, zero, true_label);
         new_intercode(GOTO_in, NULL, false_label, NULL, NULL);
     }
@@ -696,4 +777,37 @@ void trans_read(Node *k)
         {
             trans_read(i);
         }
+}
+
+Operand *copy_operand(Operand *k)
+{
+    Operand *tmp = new_tmp();
+    tmp->kind = k->kind;
+    strcpy(tmp->name, k->name);
+    tmp->type = k->type;
+    tmp->value = k->value;
+    tmp->variable = k->variable;
+    return tmp;
+}
+
+char *para_name(int k)
+{
+    char *name = (char *)malloc(sizeof(char) * 40);
+    name[0] = 'v';
+    sprintf(&name[1], "%d", k);
+    return name;
+}
+
+void clear()
+{
+    for (InterCode *p = intercode_head; p; p = p->next)
+    {
+        if (p->next == NULL)
+            continue;
+        if (p->kind == GOTO_in && p->next->kind == LABEL_in)
+        {
+            if (p->singop.op->value == p->next->singop.op->value)
+                remove_intercode(p->next);
+        } //利用指令自然流动去掉相邻的GOTO和LABEL
+    }
 }
