@@ -918,7 +918,6 @@ void clear2()
                 remove_intercode(p);
             //如果没有goto引用它，就可以将其去掉
         } //清除无用的label
-
         if (p->para_num == 3)
         {
             if (p->kind == PLUS_in)
@@ -941,6 +940,6 @@ void clear2()
                      p->triop.op2->value == 1))
                     remove_intercode(p); //乘1等于自己
             }
-        }//特殊的四则运算
+        }
     }
 }

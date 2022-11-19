@@ -48,6 +48,6 @@ int main(int argc, char **argv)
 }
 
 /*
-clear   goto     数字运算   return-(label||function)
-clear2  label
+20
+2 0 8 5 13 17 19 14 11 6 1 9 10 15 3 18 7 12 16 4
 */

@@ -1,6 +1,4 @@
 int f(int k){
-int A=1,B=2,C=3;
-int D=2||A||B&&C;
 struct Car{
 int wheel[4];
 int height;
