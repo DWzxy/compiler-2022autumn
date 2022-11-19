@@ -140,7 +140,7 @@ void deal_ExtDef(Node *k)
                 deal_CompSt(compst, type);
                 //解析内部定义
                 compst->symbol = define_stack[define_top]; //将符号表附加到compst
-                stack_pop();
+                stack_pop();//先附加再退栈
             }
         }
     }

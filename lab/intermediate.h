@@ -56,6 +56,7 @@ typedef struct Operand_
 typedef struct InterCode_
 {
     enum Intercode_kind kind;
+    int para_num;
     union
     {
         struct
@@ -112,4 +113,6 @@ void trans_cond(Node *k, Operand *true_label, Operand *false_label);
 void trans_read(Node *k);
 Operand *copy_operand(Operand *k);
 char *para_name(int k);
+void reverse_relop(char*name);
 void clear();
+void clear2();

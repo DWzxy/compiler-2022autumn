@@ -31,7 +31,7 @@ void insert_intercode(InterCode *k)
         k->pre = intercode_tail;
         intercode_tail = k;
     }
-    print_intercode(k);
+    //  print_intercode(k);
 }
 
 void remove_intercode(InterCode *k)
@@ -39,12 +39,13 @@ void remove_intercode(InterCode *k)
     if (k == intercode_head)
         intercode_head = k->next;
     else if (k == intercode_tail)
-        intercode_tail = k->pre;
+        k->pre->next = NULL;
     else
     {
         k->pre->next = k->next;
         k->next->pre = k->pre;
     }
+    //虽然从链表里去掉了k，但k仍在，可以访问它原来的pre和next
 }
 
 Operand *new_operand(enum Operand_kind kind, int type, char *name)
@@ -84,17 +85,20 @@ void new_intercode(enum Intercode_kind kind, Operand *res,
     if (kind == LABEL_in || kind == FUNCTION_in || kind == GOTO_in || kind == RETURN_in || kind == ARG_in || kind == PARAM_in || kind == READ_in || kind == WRITE_in)
     {
         p->singop.op = op1;
+        p->para_num = 1;
     }
     else if (kind == ASSIGN_in || kind == DEC_in || kind == CALL_in)
     {
         p->binop.op1 = op1;
         p->binop.op2 = op2;
+        p->para_num = 2;
     }
     else if (kind == PLUS_in || kind == MINUS_in || kind == STAR_in || kind == DIV_in)
     {
         p->triop.op1 = op1;
         p->triop.op2 = op2;
         p->triop.result = res;
+        p->para_num = 3;
     }
     else if (kind == IF_in)
     {
@@ -102,6 +106,7 @@ void new_intercode(enum Intercode_kind kind, Operand *res,
         p->recop.op2 = op2;
         p->recop.op3 = op3;
         p->recop.relop = res;
+        p->para_num = 4;
     }
     insert_intercode(p);
 }
@@ -690,13 +695,11 @@ Operand *trans_exp(Node *k) // if_right表示是否是右值
             now = new_tmp();
             now->variable = Array->variable->array.elem;
             //处理这一节数组
-            //      if (Array->type == Address) //第一节
-            //           new_intercode(ASSIGN_in, NULL, now, Array, NULL);
             new_intercode(STAR_in, tmp, para,
                           new_constant(size_of(now->variable)),
                           NULL); //这一个维度的宽度
             new_intercode(PLUS_in, now, Array, tmp, NULL);
-            //加上这一维度的空间
+            //前面的地址加上这一维度的空间
             if (now->variable->array.size == 0)
             {
                 //最后一个维度，可能也是第一个
@@ -704,6 +707,7 @@ Operand *trans_exp(Node *k) // if_right表示是否是右值
                 now = addr; //最后再变回取值
                 if (now->variable->kind == ARRAY || now->variable->kind == STRUCTURE)
                     now->type = Normal;
+                //注意如果成员仍是数组或结构体，要继续计算地址，因此不取值
                 else
                     now->type = Star;
             }
@@ -729,7 +733,7 @@ void trans_cond(Node *k, Operand *true_label, Operand *false_label)
     // Exp AND Exp | Exp OR Exp | Exp RELOP Exp | NOT Exp | others
     if (k->child_num == 3 && strcmp(k->child->next->name, "RELOP") == 0)
     {
-        Operand *relop = new_varible(k->child->next->val.char_val);
+        Operand *relop = new_function(k->child->next->val.char_val);
 #ifdef DEBUG
         printf("[RELOP %s]\n", relop->name);
 #endif
@@ -757,7 +761,7 @@ void trans_cond(Node *k, Operand *true_label, Operand *false_label)
     else
     {
         Operand *exp = trans_exp(k);
-        Operand *relop = new_varible("!=");
+        Operand *relop = new_function("!=");
         new_intercode(IF_in, relop, exp, zero, true_label);
         new_intercode(GOTO_in, NULL, false_label, NULL, NULL);
     }
@@ -798,16 +802,145 @@ char *para_name(int k)
     return name;
 }
 
+void reverse_relop(char *name)
+{
+    //判断符的翻转
+    if (strcmp(name, "!=") == 0)
+        strcpy(name, "==");
+    else if (strcmp(name, "==") == 0)
+        strcpy(name, "!=");
+    else if (strcmp(name, "<") == 0)
+        strcpy(name, ">=");
+    else if (strcmp(name, "<=") == 0)
+        strcpy(name, ">");
+    else if (strcmp(name, ">") == 0)
+        strcpy(name, "<=");
+    else if (strcmp(name, ">=") == 0)
+        strcpy(name, "<");
+}
+
 void clear()
 {
     for (InterCode *p = intercode_head; p; p = p->next)
     {
-        if (p->next == NULL)
-            continue;
-        if (p->kind == GOTO_in && p->next->kind == LABEL_in)
+        if (p->kind == RETURN_in)
         {
-            if (p->singop.op->value == p->next->singop.op->value)
-                remove_intercode(p->next);
-        } //利用指令自然流动去掉相邻的GOTO和LABEL
+            for (InterCode *tmp = p->next; tmp; tmp = tmp->next)
+            {
+                if (tmp->kind != LABEL_in && tmp->kind != FUNCTION_in)
+                    remove_intercode(tmp);
+                else
+                    break;
+            }
+        } //在return和(label或fuction)之间的语句不可能被访问
+
+        if (p->next != NULL && p->next->kind == LABEL_in)
+        {
+            if (p->kind == GOTO_in)
+            {
+                if (p->singop.op->value == p->next->singop.op->value)
+                    remove_intercode(p);
+            }
+            if (p->kind == IF_in)
+            {
+                if (p->recop.op3->value == p->next->singop.op->value)
+                    remove_intercode(p);
+            }
+        } //利用指令自然流动去掉与对应LABEL相邻的GOTO
+
+        if (p->next != NULL && p->next->next != NULL &&
+            p->next->kind == GOTO_in && p->next->next->kind == LABEL_in)
+        {
+            if (p->kind == IF_in)
+            {
+                if (p->recop.op3->value == p->next->next->singop.op->value)
+                {
+                    reverse_relop(p->recop.relop->name);
+                    p->recop.op3->value = p->next->singop.op->value;
+                    remove_intercode(p->next);
+                    remove_intercode(p->next);
+                }
+            }
+        }
+        // if x relop y goto label1
+        //  goto label2
+        //  label1  一类的语句
+        //改为if x !relop y goto label2
+
+        if (p->para_num == 3 && p->triop.op1->kind == CONSTANT_operand &&
+            p->triop.op2->kind == CONSTANT_operand)
+        {
+            int tmp1 = p->triop.op1->value, tmp2 = p->triop.op2->value, tmp3;
+            if (p->kind == PLUS_in)
+                tmp3 = tmp1 + tmp2;
+            else if (p->kind == MINUS_in)
+                tmp3 = tmp1 - tmp2;
+            else if (p->kind == STAR_in)
+                tmp3 = tmp1 * tmp2;
+            else if (p->kind == DIV_in)
+                tmp3 = tmp1 / tmp2; //计算常数结果
+            *(p->triop.result) = *(new_constant(tmp3));
+            //这一步直接改变了该操作数指针指向的操作数的值
+            //因此所有引用该操作数的指令都会同时改变
+            remove_intercode(p);
+        } //常数之间的运算可以直接赋值
+
+        /*       if (p->kind == ASSIGN_in && p->binop.op1->kind == TMP_operand &&
+                   p->binop.op1->type == Normal)
+               {
+                   *(p->binop.op1) = *(p->binop.op2);
+               } //普通变量赋值可以去掉*/
+    }
+}
+
+void clear2()
+{
+    for (InterCode *p = intercode_head; p; p = p->next)
+    {
+        if (p->kind == LABEL_in)
+        {
+            int tmp = 0;
+            for (InterCode *i = intercode_head; i; i = i->next)
+            {
+                //重新遍历，看该label被几个goto饮用
+                if (i->kind == GOTO_in)
+                {
+                    if (i->singop.op->value == p->singop.op->value)
+                        tmp++;
+                }
+                if (i->kind == IF_in)
+                {
+                    if (i->recop.op3->value == p->singop.op->value)
+                        tmp++;
+                }
+            }
+            if (tmp == 0)
+                remove_intercode(p);
+            //如果没有goto引用它，就可以将其去掉
+        } //清除无用的label
+
+        if (p->para_num == 3)
+        {
+            if (p->kind == PLUS_in)
+            {
+                if ((p->triop.result == p->triop.op2 &&
+                     p->triop.op1->kind == CONSTANT_operand &&
+                     p->triop.op1->value == 0) ||
+                    (p->triop.result == p->triop.op1 &&
+                     p->triop.op2->kind == CONSTANT_operand &&
+                     p->triop.op2->value == 0))
+                    remove_intercode(p); //加0等于自己
+            }
+            else if (p->kind == STAR_in)
+            {
+                if ((p->triop.result == p->triop.op2 &&
+                     p->triop.op1->kind == CONSTANT_operand &&
+                     p->triop.op1->value == 1) ||
+                    (p->triop.result == p->triop.op1 &&
+                     p->triop.op2->kind == CONSTANT_operand &&
+                     p->triop.op2->value == 1))
+                    remove_intercode(p); //乘1等于自己
+            }
+        }//特殊的四则运算
     }
 }

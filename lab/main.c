@@ -34,20 +34,20 @@ int main(int argc, char **argv)
     table_init();
     read(semantic_tree);
     check_error18();
-    //   printf("[[[semantic over.]]]\n\n\n");
 
     //中间代码生成
     if (semantic_right)
     {
         trans_init();
         trans_read(semantic_tree);
-        //     printf("[[[interdiate over.]]]\n\n\n");
-   //     print_all_intercode();
+        clear();
+        clear2();
+        print_all_intercode();
     }
     return 0;
 }
 
 /*
-20
-2 0 8 5 13 17 19 14 11 6 1 9 10 15 3 18 7 12 16 4
+clear   goto     数字运算   return-(label||function)
+clear2  label
 */
