@@ -212,13 +212,12 @@ void object_read()
             p = p->next;
             int offset = p->singop.op->value * 4;
 #ifdef DEBUG
-            printf("paranum = %d\n", offset / 4);
+            printf("    [paranum = %d]\n", offset / 4);
 #endif
             while (p->kind == PARAM_in)
             {
                 Operand *op = p->singop.op;
-                int reg1 = get_reg(op);
-                printf("lw %s, %d($fp)\n", reg[reg1].name, offset);
+                get_reg(op);
                 offset -= 4;
                 p = p->next;
             }
@@ -249,6 +248,7 @@ void object_read()
         }
         else if (p->kind == PARAM_in)
         {
+            //不应该出现,已在Function处理
         }
         else if (p->kind == READ_in)
         {
