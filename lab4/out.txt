@@ -1,3 +1,7 @@
+FUNCTION_f:
+addi $sp, $sp, -4
+sw $fp, 0($sp)
+move $fp, $sp
     [op t1 offset = 4]
 lw $t0, -4($fp)
     [t1 -> reg 8 $t0]
@@ -85,17 +89,11 @@ add $t2, $t9, $t0
     [*t14 -> reg 10 $t2]
     [#4 -> reg 18 $s2]
 sw $s2, 0($t2)
-    [op v4 offset = 56]
-sw $t3, -12($fp)
-lw $t3, -56($fp)
-    [v4 -> reg 11 $t3]
-sw $t4, -16($fp)
-li $t4, 1
-    [#1 -> reg 12 $t4]
     [save all regs]
 sw $t0, -48($fp)
 sw $t2, -52($fp)
-sw $t3, -56($fp)
+sw $t3, -12($fp)
+sw $t4, -16($fp)
 sw $t6, -20($fp)
 sw $s0, -24($fp)
 sw $s1, -28($fp)
@@ -103,8 +101,20 @@ sw $s3, -32($fp)
 sw $s5, -36($fp)
 sw $s6, -40($fp)
 sw $t9, -44($fp)
-beq $t3, $t4, label2
-label2:
+FUNCTION_fact:
+addi $sp, $sp, -4
+sw $fp, 0($sp)
+move $fp, $sp
+    [op v4 offset = 56]
+lw $t0, -56($fp)
+    [v4 -> reg 8 $t0]
+li $t1, 1
+    [#1 -> reg 9 $t1]
+    [save all regs]
+sw $t0, -56($fp)
+beq $t0, $t1, LABEL2
+    [save all regs]
+LABEL2:
     [op t16 offset = 60]
 lw $t0, -60($fp)
     [t16 -> reg 8 $t0]
@@ -113,6 +123,9 @@ lw $t1, -56($fp)
 li $t2, 1
     [#1 -> reg 10 $t2]
 addi $t0, $t1, -1
+    [t16 -> reg 8 $t0]
+sw $t0, -4($sp)
+addi $sp, $sp, -4
     [save all regs]
 sw $t0, -60($fp)
 sw $t1, -56($fp)
@@ -129,6 +142,11 @@ mul $t0, $t1, $t2
 sw $t0, -64($fp)
 sw $t1, -56($fp)
 sw $t2, -68($fp)
+FUNCTION_main:
+addi $sp, $sp, -4
+sw $fp, 0($sp)
+move $fp, $sp
+    [save all regs]
     [op v5 offset = 72]
 lw $t0, -72($fp)
     [v5 -> reg 8 $t0]
@@ -142,8 +160,13 @@ li $t2, 1
     [save all regs]
 sw $t0, -72($fp)
 sw $t1, -76($fp)
-beq $t0, $t2, label5
+beq $t0, $t2, LABEL5
+lw $t0, -72($fp)
+    [v5 -> reg 8 $t0]
+sw $t0, -4($sp)
+addi $sp, $sp, -4
     [save all regs]
+sw $t0, -72($fp)
     [op v6 offset = 80]
 lw $t0, -80($fp)
     [v6 -> reg 8 $t0]
@@ -151,16 +174,17 @@ lw $t0, -80($fp)
 lw $t1, -84($fp)
     [t22 -> reg 9 $t1]
 move $t0, $t1
-j label6
+j LABEL6
     [save all regs]
 sw $t0, -80($fp)
 sw $t1, -84($fp)
-label5:
+LABEL5:
 lw $t0, -80($fp)
     [v6 -> reg 8 $t0]
 li $t1, 1
     [#1 -> reg 9 $t1]
 move $t0, $t1
-label6:
+LABEL6:
     [save all regs]
 sw $t0, -80($fp)
+    [save all regs]

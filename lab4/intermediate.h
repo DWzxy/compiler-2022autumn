@@ -100,7 +100,7 @@ int size_of(Type *k);
 
 void trans_ExtDef(Node *k);
 void trans_FunDec(Node *k);
-void trans_VarList(Node *k);
+int trans_VarList(Node *k);
 void trans_DefList(Node *k);
 void trans_StmtList(Node *k);
 void trans_CompSt(Node *k);

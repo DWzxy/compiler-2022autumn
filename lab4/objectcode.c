@@ -203,6 +203,26 @@ void object_read()
             printf("FUNCTION_");
             print_operand(p->singop.op);
             printf(":\n");
+            // push ebp
+            printf("addi $sp, $sp, -4\n");
+            printf("sw $fp, 0($sp)\n");
+            // ebp=esp
+            printf("move $fp, $sp\n");
+            //获取参数
+            p = p->next;
+            int offset = p->singop.op->value * 4;
+#ifdef DEBUG
+            printf("paranum = %d\n", offset / 4);
+#endif
+            while (p->kind == PARAM_in)
+            {
+                Operand *op = p->singop.op;
+                int reg1 = get_reg(op);
+                printf("lw %s, %d($fp)\n", reg[reg1].name, offset);
+                offset -= 4;
+                p = p->next;
+            }
+            continue;
         }
         else if (p->kind == GOTO_in)
         {
@@ -229,8 +249,6 @@ void object_read()
         }
         else if (p->kind == PARAM_in)
         {
-            Operand*op= p->singop.op;
-            int reg1=get_reg(op);
         }
         else if (p->kind == READ_in)
         {

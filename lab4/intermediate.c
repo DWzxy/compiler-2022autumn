@@ -342,18 +342,20 @@ void trans_FunDec(Node *k)
     new_intercode(FUNCTION_in, NULL, func, NULL, NULL);
     if (k->child_num == 4)
     { //有参数
-        trans_VarList(k->child->next->next);
+        func->value = trans_VarList(k->child->next->next);
     }
     return;
 }
 
-void trans_VarList(Node *k)
+int trans_VarList(Node *k)
 {
+    int num = 0;
     // ParamDec COMMA VarList| ParamDec
     for (Node *i = k->child;; i = i->next->next->child)
     {
         //每一个参数定义
         // Specifier VarDec
+        num++; //记录参数个数
         ListNode *p = trans_VarDec(i->child->next);
         p->para_no = -para_count++; //记录这是第几个参数
         //负数代表是函数参数，自己就是地址
@@ -363,7 +365,7 @@ void trans_VarList(Node *k)
         if (i->next == NULL)
             break;
     }
-    return;
+    return num;
 }
 
 void trans_DefList(Node *k)
@@ -882,14 +884,14 @@ void clear()
             else if (p->kind == DIV_in)
                 tmp3 = tmp1 / tmp2; //计算常数结果
             //重建一个常数赋值
-            p->kind=ASSIGN_in;
+            p->kind = ASSIGN_in;
             p->para_num = 2;
             p->binop.op1 = p->triop.result;
             p->binop.op2 = new_constant(tmp3);
             //           *(p->triop.result) = *(new_constant(tmp3));
             //这一步直接改变了该操作数指针指向的操作数的值
             //因此所有引用该操作数的指令都会同时改变
- //           remove_intercode(p);
+            //           remove_intercode(p);
         } //常数之间的运算可以直接赋值
     }
 }
