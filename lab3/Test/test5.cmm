@@ -15,7 +15,9 @@ int fact(int n)
 return n;
 else
 return (n * fact(n - 1));
-} int main()
+} 
+
+int main()
 {
 int m, result;
 m = read();

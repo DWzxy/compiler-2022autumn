@@ -1,0 +1,166 @@
+    [op t1 offset = 4]
+lw $t0, -4($fp)
+    [t1 -> reg 8 $t0]
+li $t1, 672
+    [#672 -> reg 9 $t1]
+move $t0, $t1
+    [op t2 offset = 8]
+lw $t2, -8($fp)
+    [t2 -> reg 10 $t2]
+    [op &v3 offset = 12]
+lw $t3, -12($fp)
+    [&v3 -> reg 11 $t3]
+    [t1 -> reg 8 $t0]
+add $t2, $t3, $t0
+    [op t3 offset = 16]
+lw $t4, -16($fp)
+    [t3 -> reg 12 $t4]
+li $t5, 6
+    [#6 -> reg 13 $t5]
+move $t4, $t5
+    [op t4 offset = 20]
+lw $t6, -20($fp)
+    [t4 -> reg 14 $t6]
+    [t3 -> reg 12 $t4]
+li $t7, 8
+    [#8 -> reg 15 $t7]
+mul $t6, $t4, $t7
+    [op t5 offset = 24]
+lw $s0, -24($fp)
+    [t5 -> reg 16 $s0]
+    [t2 -> reg 10 $t2]
+    [t4 -> reg 14 $t6]
+add $s0, $t2, $t6
+    [op t6 offset = 28]
+lw $s1, -28($fp)
+    [t6 -> reg 17 $s1]
+li $s2, 4
+    [#4 -> reg 18 $s2]
+move $s1, $s2
+    [op t7 offset = 32]
+lw $s3, -32($fp)
+    [t7 -> reg 19 $s3]
+    [t5 -> reg 16 $s0]
+    [t6 -> reg 17 $s1]
+add $s3, $s0, $s1
+    [*t7 -> reg 19 $s3]
+li $s4, 9
+    [#9 -> reg 20 $s4]
+sw $s4, 0($s3)
+    [op t9 offset = 36]
+lw $s5, -36($fp)
+    [t9 -> reg 21 $s5]
+    [op &v2 offset = 40]
+lw $s6, -40($fp)
+    [&v2 -> reg 22 $s6]
+move $s5, $s6
+    [t9 -> reg 21 $s5]
+    [t9 -> reg 21 $s5]
+li $s7, 16
+    [#16 -> reg 23 $s7]
+addi $s5, $s5, 16
+    [*t9 -> reg 21 $s5]
+li $t8, 187
+    [#187 -> reg 24 $t8]
+sw $t8, 0($s5)
+    [op t11 offset = 44]
+lw $t9, -44($fp)
+    [t11 -> reg 25 $t9]
+    [&v2 -> reg 22 $s6]
+move $t9, $s6
+    [op t13 offset = 48]
+sw $t0, -4($fp)
+lw $t0, -48($fp)
+    [t13 -> reg 8 $t0]
+li $t1, 12
+    [#12 -> reg 9 $t1]
+move $t0, $t1
+    [op t14 offset = 52]
+sw $t2, -8($fp)
+lw $t2, -52($fp)
+    [t14 -> reg 10 $t2]
+    [t11 -> reg 25 $t9]
+    [t13 -> reg 8 $t0]
+add $t2, $t9, $t0
+    [*t14 -> reg 10 $t2]
+    [#4 -> reg 18 $s2]
+sw $s2, 0($t2)
+    [op v4 offset = 56]
+sw $t3, -12($fp)
+lw $t3, -56($fp)
+    [v4 -> reg 11 $t3]
+sw $t4, -16($fp)
+li $t4, 1
+    [#1 -> reg 12 $t4]
+    [save all regs]
+sw $t0, -48($fp)
+sw $t2, -52($fp)
+sw $t3, -56($fp)
+sw $t6, -20($fp)
+sw $s0, -24($fp)
+sw $s1, -28($fp)
+sw $s3, -32($fp)
+sw $s5, -36($fp)
+sw $s6, -40($fp)
+sw $t9, -44($fp)
+beq $t3, $t4, label2
+label2:
+    [op t16 offset = 60]
+lw $t0, -60($fp)
+    [t16 -> reg 8 $t0]
+lw $t1, -56($fp)
+    [v4 -> reg 9 $t1]
+li $t2, 1
+    [#1 -> reg 10 $t2]
+addi $t0, $t1, -1
+    [save all regs]
+sw $t0, -60($fp)
+sw $t1, -56($fp)
+    [op t19 offset = 64]
+lw $t0, -64($fp)
+    [t19 -> reg 8 $t0]
+lw $t1, -56($fp)
+    [v4 -> reg 9 $t1]
+    [op t18 offset = 68]
+lw $t2, -68($fp)
+    [t18 -> reg 10 $t2]
+mul $t0, $t1, $t2
+    [save all regs]
+sw $t0, -64($fp)
+sw $t1, -56($fp)
+sw $t2, -68($fp)
+    [op v5 offset = 72]
+lw $t0, -72($fp)
+    [v5 -> reg 8 $t0]
+    [op t20 offset = 76]
+lw $t1, -76($fp)
+    [t20 -> reg 9 $t1]
+move $t0, $t1
+    [v5 -> reg 8 $t0]
+li $t2, 1
+    [#1 -> reg 10 $t2]
+    [save all regs]
+sw $t0, -72($fp)
+sw $t1, -76($fp)
+beq $t0, $t2, label5
+    [save all regs]
+    [op v6 offset = 80]
+lw $t0, -80($fp)
+    [v6 -> reg 8 $t0]
+    [op t22 offset = 84]
+lw $t1, -84($fp)
+    [t22 -> reg 9 $t1]
+move $t0, $t1
+j label6
+    [save all regs]
+sw $t0, -80($fp)
+sw $t1, -84($fp)
+label5:
+lw $t0, -80($fp)
+    [v6 -> reg 8 $t0]
+li $t1, 1
+    [#1 -> reg 9 $t1]
+move $t0, $t1
+label6:
+    [save all regs]
+sw $t0, -80($fp)
