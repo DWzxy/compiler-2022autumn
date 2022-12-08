@@ -44,7 +44,7 @@ int main(int argc, char **argv)
     printf("\n\n");
 
     //机器代码生成
-        if (argc > 2)
+    if (argc > 2)
         freopen(argv[2], "w", stdout);
     create_code();
     return 0;

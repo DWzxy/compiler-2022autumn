@@ -22,9 +22,15 @@ typedef struct var_descriper
 
 void init_reg();
 
+//将x加入参数与变量列表中
 void add_op(Operand*x);
+//计算该函数的参数变量空间,注意不是总数
+int para_var_count(InterCode*x);
+//查找offset,将*x与x联系起来
 int find_op_offset(Operand*x);
+//改变offset,加入列表,注意没有真正调用push
 void push_op(Operand*x);
+//返回寄存器
 int get_reg(Operand *x);
 void save_all_reg();
 

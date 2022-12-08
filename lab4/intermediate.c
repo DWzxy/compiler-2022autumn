@@ -339,11 +339,14 @@ void trans_FunDec(Node *k)
 {
     // FunDec = ID LP VarList RP| ID LP RP //函数及参数列表
     Operand *func = new_function(k->child->val.char_val);
+    func->value = 0;
     new_intercode(FUNCTION_in, NULL, func, NULL, NULL);
+
     if (k->child_num == 4)
     { //有参数
         func->value = trans_VarList(k->child->next->next);
     }
+    //  printf("para_num = %d\n",func->value);
     return;
 }
 
@@ -765,7 +768,8 @@ void trans_cond(Node *k, Operand *true_label, Operand *false_label)
     else
     {
         Operand *exp = trans_exp(k);
-        Operand *relop = new_function("!=");
+        Operand *relop = new_tmp();
+        strcpy(relop->name, "!=");
         new_intercode(IF_in, relop, exp, zero, true_label);
         new_intercode(GOTO_in, NULL, false_label, NULL, NULL);
     }
