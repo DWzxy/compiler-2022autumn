@@ -1,6 +1,6 @@
 #include "objectcode.h"
 
-#define DEBUG
+//#define DEBUG
 
 //对每个函数而言，最上层是参数，然后fp指向自己的旧值，接下来是各个新定义的变量
 
@@ -126,7 +126,7 @@ void save_all_reg()
         if (now == NULL)
             continue;
         if (now->kind == PARA_operand || now->kind == TMP_operand)
-            printf("sw %s, %d($fp)\n", reg[i].name, now->offset); //变量值存回栈
+            printf("  sw %s, %d($fp)\n", reg[i].name, now->offset); //变量值存回栈
         reg[i].var_store = NULL;
         reg[i].age = 0;
     }
@@ -191,23 +191,23 @@ int get_reg(Operand *x)
         target = oldest;
         Operand *now = reg[oldest].var_store; //注意寄存器不止存一个Op
         if (now->kind == PARA_operand || now->kind == TMP_operand)
-            printf("sw %s, %d($fp)\n", reg[oldest].name, now->offset);
+            printf("  sw %s, %d($fp)\n", reg[oldest].name, now->offset);
         //把里面的存回栈，注意只有参数和变量需要
     }
 
     if (x->type == Address)
     { //特殊的取值,因为第一次出现&x我们也知道它的值
-        printf("li %s, $fp, %d\n", reg[target].name, x->offset);
+        printf("  li %s, $fp, %d\n", reg[target].name, x->offset);
     }
     else if (x->kind == PARA_operand || x->kind == TMP_operand)
     {
         if (flag == 1)
         { //如果是未入栈的,则第一次只需要安排入栈和分配寄存器即可,不需要往寄存器里加载值
-            printf("lw %s, %d($fp)\n", reg[target].name, x->offset);
+            printf("  lw %s, %d($fp)\n", reg[target].name, x->offset);
         }
     }
     else
-        printf("li %s, %d\n", reg[target].name, x->value);
+        printf("  li %s, %d\n", reg[target].name, x->value);
 
     reg[target].age = 0;
     reg[target].var_store = x;
@@ -240,20 +240,20 @@ void object_read()
         }
         else if (p->kind == FUNCTION_in)
         {
-            printf("FUNCTION_");
+            printf("\nFUNCTION_");
             print_operand(p->singop.op);
             printf(":\n");
             // push ebp
-            printf("addi $sp, $sp, -8\n");
-            printf("sw $ra, 4($sp)\n");
-            printf("sw $fp, 0($sp)\n");
+            printf("  addi $sp, $sp, -8\n");
+            printf("  sw $ra, 4($sp)\n");
+            printf("  sw $fp, 0($sp)\n");
             // ebp=esp
-            printf("move $fp, $sp\n");
+            printf("  move $fp, $sp\n");
             //获取参数
             int tmp_offset = p->singop.op->value * 4 + 4;
             //因为有个ra
             int sp_offset = para_var_count(p);
-            printf("addi $sp, $sp, -%d\n", sp_offset);
+            printf("  addi $sp, $sp, -%d\n", sp_offset);
 #ifdef DEBUG
             printf("    [ %s paranum = %d]\n", p->singop.op->name, p->singop.op->value);
 #endif
@@ -263,7 +263,7 @@ void object_read()
             {
                 Operand *op = p->singop.op;
                 int reg_num = get_reg(op); //给参数分配栈空间
-                printf("lw %s, %d($fp)\n", reg[reg_num].name, tmp_offset);
+                printf("  lw %s, %d($fp)\n", reg[reg_num].name, tmp_offset);
                 //加载参数值
                 tmp_offset -= 4;
                 p = p->next;
@@ -272,19 +272,19 @@ void object_read()
         }
         else if (p->kind == GOTO_in)
         {
-            printf("j LABEL%d\n", p->singop.op->value);
             save_all_reg(); //一个基本块的结束
+            printf("  j LABEL%d\n", p->singop.op->value);
         }
         else if (p->kind == RETURN_in)
         {
             int reg1 = get_reg(p->singop.op);
-            printf("move $v0, %s\n", reg[reg1].name); //保存返回值
-            printf("move $sp, $fp\n");                // esp=ebp
-            printf("lw $fp, 0($sp)\n");               //恢复ebp旧值
-            printf("lw $ra, 4($sp)\n");               //恢复ra旧值
-            printf("addi $sp, $sp, 8\n");
+            printf("  move $v0, %s\n", reg[reg1].name); //保存返回值
+            printf("  move $sp, $fp\n");                // esp=ebp
+            printf("  lw $fp, 0($sp)\n");               //恢复ebp旧值
+            printf("  lw $ra, 4($sp)\n");               //恢复ra旧值
+            printf("  addi $sp, $sp, 8\n");
             save_all_reg(); //一个基本块的结束
-            printf("jr $ra\n");
+            printf("  jr $ra\n");
         }
         else if (p->kind == ARG_in)
         { // sp负责压入参数
@@ -293,10 +293,10 @@ void object_read()
             {
                 i++;
                 int reg1 = get_reg(p->singop.op);
-                printf("sw %s, -%d($sp)\n", reg[reg1].name, i * 4);
+                printf("  sw %s, -%d($sp)\n", reg[reg1].name, i * 4);
                 p = p->next;
             }
-            printf("addi $sp, $sp, -%d\n", 4 * i);
+            printf("  addi $sp, $sp, -%d\n", 4 * i);
             continue;
         }
         else if (p->kind == PARAM_in)
@@ -305,9 +305,15 @@ void object_read()
         }
         else if (p->kind == READ_in)
         {
+            printf("  jal read\n");
+            int reg1 = get_reg(p->singop.op);
+            printf("  move %s, $v0\n", reg[reg1].name);
         }
         else if (p->kind == WRITE_in)
         {
+            int reg1 = get_reg(p->singop.op);
+            printf("  move $a0, %s\n", reg[reg1].name);
+            printf("  jal write\n");
         }
         else if (p->kind == ASSIGN_in)
         {
@@ -317,14 +323,14 @@ void object_read()
             int reg2 = get_reg(op2); //* & [] #
             if (op1->type == Star)
             { //*x= [] #
-                printf("sw %s, 0(%s)\n", reg[reg2].name, reg[reg1].name);
+                printf("  sw %s, 0(%s)\n", reg[reg2].name, reg[reg1].name);
             }
             else
             { // x= * & [] #
                 if (op2->type == Star)
-                    printf("lw %s, 0(%s)\n", reg[reg1].name, reg[reg2].name);
+                    printf("  lw %s, 0(%s)\n", reg[reg1].name, reg[reg2].name);
                 else
-                    printf("move %s, %s\n", reg[reg1].name, reg[reg2].name);
+                    printf("  move %s, %s\n", reg[reg1].name, reg[reg2].name);
             }
         }
         else if (p->kind == DEC_in)
@@ -341,10 +347,28 @@ void object_read()
         else if (p->kind == CALL_in)
         {
             save_all_reg(); //一个基本块的结束
-            printf("j FUNCTION_%s\n", p->binop.op2->name);
+            if (strcmp(p->binop.op2->name, "read") == 0)
+            {
+                printf("  addi $sp, $sp, -4\n");
+                printf("  sw $ra, 0($sp)\n"); // push $ra
+                printf("  j read\n");
+                printf("  lw $ra, 0($sp)\n");
+                printf("  addi $sp, $sp, 4\n");
+            }
+            else if (strcmp(p->binop.op2->name, "write") == 0)
+            {
+                printf("  addi $sp, $sp, -4\n");
+                printf("  sw $ra, 0($sp)\n");
+                printf("  j write\n");
+                printf("  lw $ra, 0($sp)\n");
+                printf("  addi $sp, $sp, 4\n");
+            }
+            // read write 单独判断
+            else
+                printf("  j FUNCTION_%s\n", p->binop.op2->name);
             //把返回值从v0里取出来
             int reg1 = get_reg(p->binop.op1);
-            printf("move %s, $v0\n", reg[reg1].name);
+            printf("  move %s, $v0\n", reg[reg1].name);
         }
         else if (p->para_num == 3)
         { //三个操作数，加减乘除
@@ -358,39 +382,39 @@ void object_read()
             {
                 //有常数
                 if (op1->kind == CONSTANT_operand)
-                    printf("addi %s, %s, %d\n", reg[reg3].name,
+                    printf("  addi %s, %s, %d\n", reg[reg3].name,
                            reg[reg2].name, op1->value);
                 else if (op2->kind == CONSTANT_operand)
-                    printf("addi %s, %s, %d\n", reg[reg3].name,
+                    printf("  addi %s, %s, %d\n", reg[reg3].name,
                            reg[reg1].name, op2->value);
                 //无常数
                 else
-                    printf("add %s, %s, %s\n", reg[reg3].name,
+                    printf("  add %s, %s, %s\n", reg[reg3].name,
                            reg[reg1].name, reg[reg2].name);
             }
             else if (p->kind == MINUS_in)
             {
                 //有常数
                 if (op1->kind == CONSTANT_operand)
-                    printf("addi %s, %s, %d\n", reg[reg3].name,
+                    printf("  addi %s, %s, %d\n", reg[reg3].name,
                            reg[reg2].name, -op1->value);
                 else if (op2->kind == CONSTANT_operand)
-                    printf("addi %s, %s, %d\n", reg[reg3].name,
+                    printf("  addi %s, %s, %d\n", reg[reg3].name,
                            reg[reg1].name, -op2->value);
                 //无常数
                 else
-                    printf("sub %s, %s, %s\n", reg[reg3].name,
+                    printf("  sub %s, %s, %s\n", reg[reg3].name,
                            reg[reg1].name, reg[reg2].name);
             }
             else if (p->kind == STAR_in)
             {
-                printf("mul %s, %s, %s\n", reg[reg3].name,
+                printf("  mul %s, %s, %s\n", reg[reg3].name,
                        reg[reg1].name, reg[reg2].name);
             }
             else if (p->kind == DIV_in)
             {
-                printf("div %s, %s\n", reg[reg1].name, reg[reg2].name);
-                printf("mflo %s\n", reg[reg3].name);
+                printf("  div %s, %s\n", reg[reg1].name, reg[reg2].name);
+                printf("  mflo %s\n", reg[reg3].name);
             }
         }
         else if (p->kind == IF_in)
@@ -400,17 +424,17 @@ void object_read()
             save_all_reg(); //一个基本块的结束
 
             if (strcmp(p->recop.relop->name, "=="))
-                printf("beq ");
+                printf("  beq ");
             else if (strcmp(p->recop.relop->name, "!="))
-                printf("bne ");
+                printf("  bne ");
             else if (strcmp(p->recop.relop->name, ">"))
-                printf("bgt ");
+                printf("  bgt ");
             else if (strcmp(p->recop.relop->name, "<"))
-                printf("blt ");
+                printf("  blt ");
             else if (strcmp(p->recop.relop->name, ">="))
-                printf("bge ");
+                printf("  bge ");
             else if (strcmp(p->recop.relop->name, "<="))
-                printf("ble ");
+                printf("  ble ");
             printf("%s, %s, LABEL%d\n", reg[reg1].name,
                    reg[reg2].name, p->recop.op3->value);
         }
@@ -420,24 +444,32 @@ void object_read()
 
 void create_code()
 {
+    printf(".data\n");
+    printf("_prompt: .asciiz \"Enter an integer:\"\n");
+    printf("_ret: .asciiz \"\\n\"\n");
+    printf(".globl main\n"); //主函数从这里开始
+    printf(".text\n\n");
+
     init_reg();
     //添加read
-	printf("read:\n");
-	printf("  li $v0, 4\n");
-	printf("  la $a0, _prompt\n");
-	printf("  syscall\n");
-	printf("  li $v0, 5\n");
-	printf("  syscall\n");
-	printf("  jr $ra\n\n");
+    printf("read:\n");
+    printf("  li $v0, 4\n");
+    printf("  la $a0, _prompt\n");
+    printf("  syscall\n"); //调用print_string打印提示
+    printf("  li $v0, 5\n");
+    printf("  syscall\n");
+    printf("  jr $ra\n\n");
 
     //添加write
-	printf("write:\n");
-	fputs("  li $v0, 1\n");
-	fputs("  syscall\n");
-	fputs("  li $v0, 4\n");
-	fputs("  la $a0, _ret\n");
-	fputs("  syscall\n");
-	fputs("  move $v0, $0\n");
-	fputs("  jr $ra\n\n");
-    object_read();
+    printf("write:\n");
+    printf("  li $v0, 1\n");
+    printf("  syscall\n"); //输出
+    printf("  li $v0, 4\n");
+    printf("  la $a0, _ret\n");
+    printf("  syscall\n"); //打一个换行符
+    printf("  move $v0, $0\n");
+    printf("  jr $ra\n");
+    //样例有
+
+    object_read(); //逐句翻译
 }

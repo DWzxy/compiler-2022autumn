@@ -1,3 +1,26 @@
+.data
+_prompt: .asciiz "Enter an integer:"
+_ret: .asciiz "\n"
+.globl main
+.text
+
+read:
+  li $v0, 4
+  la $a0, _prompt
+  syscall
+  li $v0, 5
+  syscall
+  jr $ra
+
+write:
+  li $v0, 1
+  syscall
+  li $v0, 4
+  la $a0, _ret
+  syscall
+  move $v0, $0
+  jr $ra
+
 FUNCTION_f:
 addi $sp, $sp, -8
 sw $ra, 4($sp)
@@ -107,6 +130,7 @@ sw $s4, -1012($fp)
 sw $s6, -1016($fp)
 sw $s7, -24($fp)
 jr $ra
+
 FUNCTION_fact:
 addi $sp, $sp, -8
 sw $ra, 4($sp)
@@ -152,29 +176,32 @@ addi $t1, $t2, -1
     [t17 -> reg 9 $t1]
 sw $t1, -4($sp)
 addi $sp, $sp, -4
-j FUNCTION_
     [save all regs]
 sw $t0, -8($fp)
 sw $t1, -12($fp)
 sw $t2, -4($fp)
-    [op t20 offset = -16]
-    [t20 -> reg 8 $t0]
-lw $t1, -4($fp)
-    [v4 -> reg 9 $t1]
-    [op t19 offset = -20]
-    [t19 -> reg 10 $t2]
-mul $t0, $t1, $t2
-    [t20 -> reg 8 $t0]
-move $v0, $t0
+j FUNCTION_fact
+    [op t19 offset = -16]
+    [t19 -> reg 8 $t0]
+move $t0, $v0
+    [op t20 offset = -20]
+    [t20 -> reg 9 $t1]
+lw $t2, -4($fp)
+    [v4 -> reg 10 $t2]
+    [t19 -> reg 8 $t0]
+mul $t1, $t2, $t0
+    [t20 -> reg 9 $t1]
+move $v0, $t1
 move $sp, $fp
 lw $fp, 0($sp)
 lw $ra, 4($sp)
 addi $sp, $sp, 8
     [save all regs]
 sw $t0, -16($fp)
-sw $t1, -4($fp)
-sw $t2, -20($fp)
+sw $t1, -20($fp)
+sw $t2, -4($fp)
 jr $ra
+
 FUNCTION_main:
 addi $sp, $sp, -8
 sw $ra, 4($sp)
@@ -182,55 +209,63 @@ sw $fp, 0($sp)
 move $fp, $sp
 addi $sp, $sp, -156
     [ main paranum = 0]
-j FUNCTION_
     [save all regs]
-    [op v6 offset = -4]
-    [v6 -> reg 8 $t0]
-    [op t21 offset = -8]
-    [t21 -> reg 9 $t1]
-move $t0, $t1
-    [v6 -> reg 8 $t0]
+j FUNCTION_read
+    [op t21 offset = -4]
+    [t21 -> reg 8 $t0]
+move $t0, $v0
+    [op v6 offset = -8]
+    [v6 -> reg 9 $t1]
+    [t21 -> reg 8 $t0]
+move $t1, $t0
+    [v6 -> reg 9 $t1]
 li $t2, 1
     [#1 -> reg 10 $t2]
     [save all regs]
 sw $t0, -4($fp)
 sw $t1, -8($fp)
-beq $t0, $t2, LABEL5
+beq $t1, $t2, LABEL5
 li $t0, 3
     [#3 -> reg 8 $t0]
 sw $t0, -4($sp)
-lw $t1, -4($fp)
+lw $t1, -8($fp)
     [v6 -> reg 9 $t1]
 sw $t1, -8($sp)
 addi $sp, $sp, -8
-j FUNCTION_
     [save all regs]
-sw $t1, -4($fp)
-    [op v7 offset = -12]
-    [v7 -> reg 8 $t0]
-    [op t24 offset = -16]
-    [t24 -> reg 9 $t1]
-move $t0, $t1
+sw $t1, -8($fp)
+j FUNCTION_fact
+    [op t24 offset = -12]
+    [t24 -> reg 8 $t0]
+move $t0, $v0
+    [op v7 offset = -16]
+    [v7 -> reg 9 $t1]
+    [t24 -> reg 8 $t0]
+move $t1, $t0
 j LABEL6
     [save all regs]
 sw $t0, -12($fp)
 sw $t1, -16($fp)
 LABEL5:
-lw $t0, -12($fp)
+lw $t0, -16($fp)
     [v7 -> reg 8 $t0]
 li $t1, 1
     [#1 -> reg 9 $t1]
 move $t0, $t1
 LABEL6:
-j FUNCTION_
     [save all regs]
-sw $t0, -12($fp)
-li $t0, 0
-    [#0 -> reg 8 $t0]
-move $v0, $t0
+sw $t0, -16($fp)
+j FUNCTION_write
+lw $t0, -16($fp)
+    [v7 -> reg 8 $t0]
+move $t0, $v0
+li $t1, 0
+    [#0 -> reg 9 $t1]
+move $v0, $t1
 move $sp, $fp
 lw $fp, 0($sp)
 lw $ra, 4($sp)
 addi $sp, $sp, 8
     [save all regs]
+sw $t0, -16($fp)
 jr $ra
