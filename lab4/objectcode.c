@@ -1,12 +1,12 @@
 #include "objectcode.h"
 
-//#define DEBUG
+// #define DEBUG
 
-//对每个函数而言，最上层是参数，然后fp指向自己的旧值，接下来是各个新定义的变量
+// 对每个函数而言，最上层是参数，然后fp指向自己的旧值，接下来是各个新定义的变量
 
 Reg_descriper reg[32];    // 32个寄存器
-int fp_offset = 0;        //记录当前层离fp有多远
-Operand *var_list = NULL; //对于*x类的变量，需要把它关联到x，所以用该变量记录所有x
+int fp_offset = 0;        // 记录当前层离fp有多远
+Operand *var_list = NULL; // 对于*x类的变量，需要把它关联到x，所以用该变量记录所有x
 extern InterCode *intercode_head;
 /*
 arg1
@@ -61,7 +61,7 @@ void init_reg()
     strcpy(reg[29].name, "$sp"); // ESP
     strcpy(reg[30].name, "$fp"); // EBP
     strcpy(reg[31].name, "$ra");
-    //可用寄存器：t0-t9,s0-s7
+    // 可用寄存器：t0-t9,s0-s7
 }
 
 void add_op(Operand *x)
@@ -75,10 +75,10 @@ int para_var_count(InterCode *x)
     int now = 0;
     for (InterCode *i = x->next; i != NULL && i->kind != FUNCTION_in; i = i->next)
     {
-        now += 4 * 3; //很宽泛的估计,一句指令最多有3个变量
+        now += 4 * 3; // 很宽泛的估计,一句指令最多有3个变量
         if (i->kind == DEC_in)
             now += i->binop.op2->value;
-        //特殊情况:申请了额外空间的变量
+        // 特殊情况:申请了额外空间的变量
     }
     return now;
 }
@@ -87,7 +87,7 @@ int find_op_offset(Operand *x)
 {
     if (x->offset != -1)
         return x->offset;
-    //否则在参数变量表里找
+    // 否则在参数变量表里找
     Operand *now = var_list;
     while (now)
     {
@@ -106,7 +106,7 @@ void push_op(Operand *x)
     if (x->kind != PARA_operand && x->kind != TMP_operand)
         return;
     fp_offset -= 4;
-    x->offset = fp_offset; //记录变量的位置
+    x->offset = fp_offset; // 记录变量的位置
 #ifdef DEBUG
     printf("    [op ");
     print_operand(x);
@@ -126,7 +126,7 @@ void save_all_reg()
         if (now == NULL)
             continue;
         if (now->kind == PARA_operand || now->kind == TMP_operand)
-            printf("  sw %s, %d($fp)\n", reg[i].name, now->offset); //变量值存回栈
+            printf("  sw %s, %d($fp)\n", reg[i].name, now->offset); // 变量值存回栈
         reg[i].var_store = NULL;
         reg[i].age = 0;
     }
@@ -134,15 +134,15 @@ void save_all_reg()
 
 int get_reg(Operand *x)
 {
-    bool flag = 0; //记录是否入栈
-                   //首先检查是否已入栈（参数和变量需要）
+    bool flag = 0; // 记录是否入栈
+                   // 首先检查是否已入栈（参数和变量需要）
     if ((x->kind == PARA_operand || x->kind == TMP_operand) &&
         find_op_offset(x) == -1)
         push_op(x);
     else
         flag = 1;
 
-    //更新寿命
+    // 更新寿命
     for (int i = 8; i <= 25; i++)
     {
         Operand *now = reg[i].var_store;
@@ -150,7 +150,7 @@ int get_reg(Operand *x)
             reg[i].age++;
     }
 
-    //先找是否在现有寄存器里
+    // 先找是否在现有寄存器里
     int target = -1;
     for (int i = 8; i <= 25; i++)
     {
@@ -164,7 +164,7 @@ int get_reg(Operand *x)
 #endif
             return i;
         }
-    } //如果已在则直接返回
+    } // 如果已在则直接返回
 
     for (int i = 8; i <= 25; i++)
     {
@@ -173,9 +173,9 @@ int get_reg(Operand *x)
             target = i;
             break;
         }
-    } //若有未用的则直接选择
+    } // 若有未用的则直接选择
 
-    //若不在寄存器中则找最不常使用的替换掉
+    // 若不在寄存器中则找最不常使用的替换掉
     int oldest = -1, oldage = -1;
     if (target == -1)
     {
@@ -187,22 +187,22 @@ int get_reg(Operand *x)
                 oldest = i;
             }
         }
-        //返回应该被替换的编号
+        // 返回应该被替换的编号
         target = oldest;
-        Operand *now = reg[oldest].var_store; //注意寄存器不止存一个Op
+        Operand *now = reg[oldest].var_store; // 注意寄存器不止存一个Op
         if (now->kind == PARA_operand || now->kind == TMP_operand)
             printf("  sw %s, %d($fp)\n", reg[oldest].name, now->offset);
-        //把里面的存回栈，注意只有参数和变量需要
+        // 把里面的存回栈，注意只有参数和变量需要
     }
 
     if (x->type == Address)
-    { //特殊的取值,因为第一次出现&x我们也知道它的值
+    { // 特殊的取值,因为第一次出现&x我们也知道它的值
         printf("  li %s, $fp, %d\n", reg[target].name, x->offset);
     }
     else if (x->kind == PARA_operand || x->kind == TMP_operand)
     {
         if (flag == 1)
-        { //如果是未入栈的,则第一次只需要安排入栈和分配寄存器即可,不需要往寄存器里加载值
+        { // 如果是未入栈的,则第一次只需要安排入栈和分配寄存器即可,不需要往寄存器里加载值
             printf("  lw %s, %d($fp)\n", reg[target].name, x->offset);
         }
     }
@@ -220,6 +220,26 @@ int get_reg(Operand *x)
     return target;
 }
 
+void into_func()
+{
+    // push ebp
+    printf("  addi $sp, $sp, -8\n");
+    printf("  sw $ra, 4($sp)\n");
+    printf("  sw $fp, 0($sp)\n");
+    // ebp=esp
+    printf("  move $fp, $sp\n");
+}
+
+void leave_func()
+{
+    printf("  move $sp, $fp\n");  // esp=ebp
+    printf("  lw $fp, 0($sp)\n"); // 恢复ebp旧值
+    printf("  lw $ra, 4($sp)\n"); // 恢复ra旧值
+    printf("  addi $sp, $sp, 8\n");
+    save_all_reg(); // 一个基本块的结束
+    printf("  jr $ra\n");
+}
+
 bool op_equal(Operand *x, Operand *y)
 {
     if (x == NULL || y == NULL)
@@ -233,38 +253,34 @@ void object_read()
 {
     InterCode *p = intercode_head;
     while (p != NULL)
-    { //解析每条指令
+    { // 解析每条指令
         if (p->kind == LABEL_in)
         {
             printf("LABEL%d:\n", p->singop.op->value);
         }
         else if (p->kind == FUNCTION_in)
         {
-            printf("\nFUNCTION_");
+            printf("\n");
             print_operand(p->singop.op);
             printf(":\n");
-            // push ebp
-            printf("  addi $sp, $sp, -8\n");
-            printf("  sw $ra, 4($sp)\n");
-            printf("  sw $fp, 0($sp)\n");
-            // ebp=esp
-            printf("  move $fp, $sp\n");
-            //获取参数
+
+            into_func();
+            // 获取参数
             int tmp_offset = p->singop.op->value * 4 + 4;
-            //因为有个ra
+            // 因为有个ra
             int sp_offset = para_var_count(p);
             printf("  addi $sp, $sp, -%d\n", sp_offset);
 #ifdef DEBUG
             printf("    [ %s paranum = %d]\n", p->singop.op->name, p->singop.op->value);
 #endif
             p = p->next;
-            fp_offset = 0; //重置偏移量
+            fp_offset = 0; // 重置偏移量
             while (p->kind == PARAM_in)
             {
                 Operand *op = p->singop.op;
-                int reg_num = get_reg(op); //给参数分配栈空间
+                int reg_num = get_reg(op); // 给参数分配栈空间
                 printf("  lw %s, %d($fp)\n", reg[reg_num].name, tmp_offset);
-                //加载参数值
+                // 加载参数值
                 tmp_offset -= 4;
                 p = p->next;
             }
@@ -272,19 +288,14 @@ void object_read()
         }
         else if (p->kind == GOTO_in)
         {
-            save_all_reg(); //一个基本块的结束
+            save_all_reg(); // 一个基本块的结束
             printf("  j LABEL%d\n", p->singop.op->value);
         }
         else if (p->kind == RETURN_in)
         {
             int reg1 = get_reg(p->singop.op);
-            printf("  move $v0, %s\n", reg[reg1].name); //保存返回值
-            printf("  move $sp, $fp\n");                // esp=ebp
-            printf("  lw $fp, 0($sp)\n");               //恢复ebp旧值
-            printf("  lw $ra, 4($sp)\n");               //恢复ra旧值
-            printf("  addi $sp, $sp, 8\n");
-            save_all_reg(); //一个基本块的结束
-            printf("  jr $ra\n");
+            printf("  move $v0, %s\n", reg[reg1].name); // 保存返回值
+            leave_func();
         }
         else if (p->kind == ARG_in)
         { // sp负责压入参数
@@ -301,7 +312,7 @@ void object_read()
         }
         else if (p->kind == PARAM_in)
         {
-            //不应该出现,已在Function处理
+            // 不应该出现,已在Function处理
         }
         else if (p->kind == READ_in)
         {
@@ -346,32 +357,14 @@ void object_read()
         }
         else if (p->kind == CALL_in)
         {
-            save_all_reg(); //一个基本块的结束
-            if (strcmp(p->binop.op2->name, "read") == 0)
-            {
-                printf("  addi $sp, $sp, -4\n");
-                printf("  sw $ra, 0($sp)\n"); // push $ra
-                printf("  j read\n");
-                printf("  lw $ra, 0($sp)\n");
-                printf("  addi $sp, $sp, 4\n");
-            }
-            else if (strcmp(p->binop.op2->name, "write") == 0)
-            {
-                printf("  addi $sp, $sp, -4\n");
-                printf("  sw $ra, 0($sp)\n");
-                printf("  j write\n");
-                printf("  lw $ra, 0($sp)\n");
-                printf("  addi $sp, $sp, 4\n");
-            }
-            // read write 单独判断
-            else
-                printf("  j FUNCTION_%s\n", p->binop.op2->name);
-            //把返回值从v0里取出来
+            save_all_reg(); // 一个基本块的结束
+            printf("  jal %s\n", p->binop.op2->name);
+            // 把返回值从v0里取出来
             int reg1 = get_reg(p->binop.op1);
             printf("  move %s, $v0\n", reg[reg1].name);
         }
         else if (p->para_num == 3)
-        { //三个操作数，加减乘除
+        { // 三个操作数，加减乘除
             Operand *result = p->triop.result;
             Operand *op1 = p->triop.op1;
             Operand *op2 = p->triop.op2;
@@ -380,28 +373,28 @@ void object_read()
             int reg2 = get_reg(op2);
             if (p->kind == PLUS_in)
             {
-                //有常数
+                // 有常数
                 if (op1->kind == CONSTANT_operand)
                     printf("  addi %s, %s, %d\n", reg[reg3].name,
                            reg[reg2].name, op1->value);
                 else if (op2->kind == CONSTANT_operand)
                     printf("  addi %s, %s, %d\n", reg[reg3].name,
                            reg[reg1].name, op2->value);
-                //无常数
+                // 无常数
                 else
                     printf("  add %s, %s, %s\n", reg[reg3].name,
                            reg[reg1].name, reg[reg2].name);
             }
             else if (p->kind == MINUS_in)
             {
-                //有常数
+                // 有常数
                 if (op1->kind == CONSTANT_operand)
                     printf("  addi %s, %s, %d\n", reg[reg3].name,
                            reg[reg2].name, -op1->value);
                 else if (op2->kind == CONSTANT_operand)
                     printf("  addi %s, %s, %d\n", reg[reg3].name,
                            reg[reg1].name, -op2->value);
-                //无常数
+                // 无常数
                 else
                     printf("  sub %s, %s, %s\n", reg[reg3].name,
                            reg[reg1].name, reg[reg2].name);
@@ -421,7 +414,7 @@ void object_read()
         {
             int reg1 = get_reg(p->recop.op1);
             int reg2 = get_reg(p->recop.op2);
-            save_all_reg(); //一个基本块的结束
+            save_all_reg(); // 一个基本块的结束
 
             if (strcmp(p->recop.relop->name, "=="))
                 printf("  beq ");
@@ -447,29 +440,32 @@ void create_code()
     printf(".data\n");
     printf("_prompt: .asciiz \"Enter an integer:\"\n");
     printf("_ret: .asciiz \"\\n\"\n");
-    printf(".globl main\n"); //主函数从这里开始
+    printf(".globl main\n"); // 主函数从这里开始
     printf(".text\n\n");
 
     init_reg();
-    //添加read
-    printf("read:\n");
-    printf("  li $v0, 4\n");
-    printf("  la $a0, _prompt\n");
-    printf("  syscall\n"); //调用print_string打印提示
+
+    // 添加read
+    printf("\nread:\n");
+    into_func();
+  //  printf("  li $v0, 4\n");
+  //  printf("  la $a0, _prompt\n");
+  //  printf("  syscall\n"); // 调用print_string打印提示
     printf("  li $v0, 5\n");
     printf("  syscall\n");
-    printf("  jr $ra\n\n");
+    leave_func();
 
-    //添加write
-    printf("write:\n");
+    // 添加write
+    printf("\nwrite:\n");
+    into_func();
     printf("  li $v0, 1\n");
-    printf("  syscall\n"); //输出
+    printf("  syscall\n"); // 输出
     printf("  li $v0, 4\n");
     printf("  la $a0, _ret\n");
-    printf("  syscall\n"); //打一个换行符
+    printf("  syscall\n"); // 打一个换行符
     printf("  move $v0, $0\n");
-    printf("  jr $ra\n");
-    //样例有
+    leave_func();
+    // 样例有
 
-    object_read(); //逐句翻译
+    object_read(); // 逐句翻译
 }

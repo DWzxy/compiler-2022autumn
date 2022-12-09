@@ -11,5 +11,6 @@ a = b;
 b = c;
 i = i + 1;
 }
+write(123456);
 return 0;
 }

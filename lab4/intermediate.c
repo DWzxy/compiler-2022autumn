@@ -220,24 +220,11 @@ void print_intercode(InterCode *k)
         printf(" %d", k->binop.op2->value);
         //只能单独打印，因为DEC中的常数前不加#
     }
-    else if (kind == CALL_in) //单独考虑read和write
+    else if (kind == CALL_in)
     {
-        if (strcmp(k->binop.op2->name, "read") == 0)
-        {
-            printf("READ ");
-            print_operand(k->binop.op1);
-        }
-        else if (strcmp(k->binop.op2->name, "write") == 0)
-        {
-            printf("WRITE ");
-            print_operand(k->binop.op1);
-        }
-        else
-        {
             print_operand(k->binop.op1);
             printf(" := CALL ");
             print_operand(k->binop.op2);
-        }
     }
     // triop
     else if (kind == PLUS_in)
@@ -682,7 +669,12 @@ Operand *trans_exp(Node *k) // if_right表示是否是右值
             if (strcmp(func->name, "write") == 0)
             {
                 Operand *arg = trans_exp(k->child->next->next->child);
-                new_intercode(CALL_in, NULL, arg, func, NULL);
+                new_intercode(WRITE_in, NULL, arg, NULL, NULL);
+            }
+            else if (strcmp(func->name, "read") == 0)
+            {
+                Operand *arg = trans_exp(k->child->next->next->child);
+                new_intercode(READ_in, NULL, arg, NULL, NULL);
             }
             else
             {

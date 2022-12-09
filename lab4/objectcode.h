@@ -33,6 +33,8 @@ void push_op(Operand*x);
 //返回寄存器
 int get_reg(Operand *x);
 void save_all_reg();
+void into_func();
+void leave_func();
 
 bool op_equal(Operand *x, Operand *y);
 void object_read();
