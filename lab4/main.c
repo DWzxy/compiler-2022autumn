@@ -7,12 +7,12 @@
 extern int yyparse();
 extern void yyrestart(FILE *);
 extern Node *semantic_tree;
-extern int if_over;        //语法分析是否正确
-extern int semantic_right; //符号分析是否正确
+extern int if_over;        // 语法分析是否正确
+extern int semantic_right; // 符号分析是否正确
 
 int main(int argc, char **argv)
 {
-    //词法语法分析
+    // 词法语法分析
     if (argc > 1)
     {
 
@@ -26,24 +26,25 @@ int main(int argc, char **argv)
         yyparse();
     }
 
-    //符号错误检查
+    // 符号错误检查
     if (!if_over)
         return 0;
     table_init();
     read(semantic_tree);
     check_error18();
 
-    //中间代码生成
+    // 中间代码生成
     if (!semantic_right)
         return 0;
     trans_init();
     trans_read(semantic_tree);
-    clear();
-    clear2();
+    //  clear();
+    //  clear1();
+    //   clear2();
     print_all_intercode();
     printf("\n\n");
 
-    //机器代码生成
+    // 机器代码生成
     if (argc > 2)
         freopen(argv[2], "w", stdout);
     create_code();

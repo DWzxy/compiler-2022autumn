@@ -17,15 +17,24 @@ else
 return (n * fact(n - 1));
 } 
 
+int get(int k){
+int y=k;
+return y;
+}
+
 int main()
 {
-//int m, result;
-//m = read();
-//if (m > 1)
-//result = fact(m);
-//else
-//result = 1;
-//write(result);
-write(3+f(4));
+int t[7],i=0;
+while(i<7){
+t[i]=i;
+i=i+1;
+}
+
+i=3;
+while(i<7){
+write(get(t[i+read()]));
+i=i+1;
+}
+
 return 0;
 }

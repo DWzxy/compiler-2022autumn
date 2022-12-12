@@ -14,6 +14,8 @@ Operand *zero;
 Operand *one;
 Operand *size;
 
+int cond_num = 0;
+
 void trans_init()
 {
     zero = new_constant(0);
@@ -31,7 +33,7 @@ void insert_intercode(InterCode *k)
         k->pre = intercode_tail;
         intercode_tail = k;
     }
- //   print_intercode(k);
+    //   print_intercode(k);
 }
 
 void remove_intercode(InterCode *k)
@@ -426,7 +428,7 @@ void trans_Dec(Node *k)
     }
     if (k->child->next && strcmp(k->child->next->name, "ASSIGNOP") == 0)
     {
-        Operand *tmp2 = trans_exp(k->child->next->next);
+        Operand *tmp2 = trans_exp(k->child->next->next, true);
         new_intercode(ASSIGN_in, NULL, tmp, tmp2, NULL);
     }
 }
@@ -494,12 +496,12 @@ void trans_stmt(Node *k)
     else if (k->child_num == 3)
     {
         // RETURN Exp SEMI
-        Operand *exp = trans_exp(k->child->next);
+        Operand *exp = trans_exp(k->child->next, true);
         new_intercode(RETURN_in, NULL, exp, NULL, NULL);
     }
     else if (k->child_num == 2)
         // Exp SEMI
-        trans_exp(k->child);
+        trans_exp(k->child, false);
     else
     {
         stack_push();
@@ -509,8 +511,8 @@ void trans_stmt(Node *k)
     }
 }
 
-Operand *trans_exp(Node *k) // if_right表示是否是右值
-{                           // 返回的是一个操作符（临时变量）
+Operand *trans_exp(Node *k, bool flag) // if_right表示是否是右值
+{                                      // 返回的是一个操作符（临时变量）
     // Exp = Exp ASSIGNOP Exp| Exp AND Exp | Exp OR Exp
     //| Exp RELOP Exp | Exp PLUS Exp | Exp MINUS Exp
     //| Exp STAR Exp | Exp DIV Exp | LP Exp RP | MINUS Exp
@@ -575,7 +577,7 @@ Operand *trans_exp(Node *k) // if_right表示是否是右值
             }
             else
             {
-                Operand *exp = trans_exp(k->child->next);
+                Operand *exp = trans_exp(k->child->next, flag);
                 // x=-y -> x=0-y
                 now = new_tmp();
                 new_intercode(MINUS_in, now, zero, exp, NULL);
@@ -590,8 +592,9 @@ Operand *trans_exp(Node *k) // if_right表示是否是右值
         Operand *tmp1 = NULL, *tmp2 = NULL, *tmp3 = NULL;
         if (strcmp(k->child->next->name, "ASSIGNOP") == 0)
         { // Exp ASSIGNOP Exp
-            tmp1 = trans_exp(k->child);
-            tmp3 = trans_exp(k->child->next->next);
+            tmp1 = trans_exp(k->child, false);
+            tmp3 = trans_exp(k->child->next->next, true);
+            // 只有赋值语句要考虑左右值
             now = tmp1;
             new_intercode(ASSIGN_in, NULL, now, tmp3, NULL);
         }
@@ -600,8 +603,8 @@ Operand *trans_exp(Node *k) // if_right表示是否是右值
                  strcmp(k->child->next->name, "STAR") == 0 ||
                  strcmp(k->child->next->name, "DIV") == 0)
         { // 四则运算
-            tmp1 = trans_exp(k->child);
-            tmp3 = trans_exp(k->child->next->next);
+            tmp1 = trans_exp(k->child, flag);
+            tmp3 = trans_exp(k->child->next->next, flag);
             now = new_tmp();
             if (strcmp(k->child->next->name, "PLUS") == 0)
                 new_intercode(PLUS_in, now, tmp1, tmp3, NULL);
@@ -620,12 +623,12 @@ Operand *trans_exp(Node *k) // if_right表示是否是右值
         }
         else if (strcmp(k->child->name, "LP") == 0)
         { // LP Exp RP
-            tmp2 = trans_exp(k->child->next);
+            tmp2 = trans_exp(k->child->next, flag);
             now = tmp2;
         }
         else if (strcmp(k->child->next->name, "DOT") == 0)
-        {                                        // Exp DOT ID
-            Operand *stru = trans_exp(k->child); // 获取前面的结构体
+        {                                              // Exp DOT ID
+            Operand *stru = trans_exp(k->child, flag); // 获取前面的结构体
             Operand *tmp = new_tmp();
             new_intercode(ASSIGN_in, NULL, tmp, stru, NULL); // 获取结构体的地址
             char *name = k->child->next->next->val.char_val; // 成员名字
@@ -645,7 +648,15 @@ Operand *trans_exp(Node *k) // if_right表示是否是右值
             if (now->variable->kind == ARRAY || now->variable->kind == STRUCTURE)
                 now->type = Normal;
             else
+            {
                 now->type = Star;
+                if (flag)
+                { // 是右值就需要取值
+                    tmp = new_tmp();
+                    new_intercode(ASSIGN_in, NULL, tmp, now, NULL);
+                    now = tmp;
+                }
+            }
         }
         else
         {
@@ -668,12 +679,12 @@ Operand *trans_exp(Node *k) // if_right表示是否是右值
             Operand *func = new_function(k->child->val.char_val);
             if (strcmp(func->name, "write") == 0)
             {
-                Operand *arg = trans_exp(k->child->next->next->child);
+                Operand *arg = trans_exp(k->child->next->next->child, true);
                 new_intercode(WRITE_in, NULL, arg, NULL, NULL);
             }
             else if (strcmp(func->name, "read") == 0)
             {
-                Operand *arg = trans_exp(k->child->next->next->child);
+                Operand *arg = trans_exp(k->child->next->next->child, flag);
                 new_intercode(READ_in, NULL, arg, NULL, NULL);
             }
             else
@@ -686,9 +697,9 @@ Operand *trans_exp(Node *k) // if_right表示是否是右值
         else if (strcmp(k->child->next->name, "LB") == 0)
         {
             // Exp LB Exp RB
-            Operand *Array = trans_exp(k->child);
+            Operand *Array = trans_exp(k->child, flag);
             // 获取第一个exp对应的数组
-            Operand *para = trans_exp(k->child->next->next);
+            Operand *para = trans_exp(k->child->next->next, flag);
             // 获取数组参数
             Operand *tmp = new_tmp(); // 记录乘积
             now = new_tmp();
@@ -708,7 +719,15 @@ Operand *trans_exp(Node *k) // if_right表示是否是右值
                     now->type = Normal;
                 // 注意如果成员仍是数组或结构体，要继续计算地址，因此不取值
                 else
+                {
                     now->type = Star;
+                    if (flag)
+                    { // 是右值就需要取值
+                        tmp = new_tmp();
+                        new_intercode(ASSIGN_in, NULL, tmp, now, NULL);
+                        now = tmp;
+                    }
+                }
             }
         }
     }
@@ -720,7 +739,7 @@ Operand *trans_arg(Node *k)
     // Args = Exp COMMA Args | Exp
     if (k->child_num > 1)
         trans_arg(k->child->next->next);
-    Operand *args = trans_exp(k->child);
+    Operand *args = trans_exp(k->child, true);
     //   Operand *tmp = copy_operand(args);
     //  tmp->type = Normal; // 传入的都是名字
     new_intercode(ARG_in, NULL, args, NULL, NULL);
@@ -736,8 +755,8 @@ void trans_cond(Node *k, Operand *true_label, Operand *false_label)
 #ifdef DEBUG
         printf("[RELOP %s]\n", relop->name);
 #endif
-        Operand *exp1 = trans_exp(k->child);
-        Operand *exp2 = trans_exp(k->child->next->next);
+        Operand *exp1 = trans_exp(k->child, true);
+        Operand *exp2 = trans_exp(k->child->next->next, true);
         new_intercode(IF_in, relop, exp1, exp2, true_label);
         new_intercode(GOTO_in, NULL, false_label, NULL, NULL);
     }
@@ -759,8 +778,7 @@ void trans_cond(Node *k, Operand *true_label, Operand *false_label)
         trans_cond(k->child->next, false_label, true_label);
     else
     {
-        Operand *exp = trans_exp(k);
-
+        Operand *exp = trans_exp(k, true);
         Operand *relop = new_function("!=");
         new_intercode(IF_in, relop, exp, zero, true_label);
         new_intercode(GOTO_in, NULL, false_label, NULL, NULL);
@@ -834,7 +852,7 @@ void clear()
             }
         } // 在return和(label或fuction)之间的语句不可能被访问
 
-        if (p->next != NULL && p->next->kind == LABEL_in)
+        else if (p->next != NULL && p->next->kind == LABEL_in)
         {
             if (p->kind == GOTO_in)
             {
@@ -848,25 +866,30 @@ void clear()
             }
         } // 利用指令自然流动去掉与对应LABEL相邻的GOTO
 
-        if (p->next != NULL && p->next->next != NULL &&
-            p->next->kind == GOTO_in && p->next->next->kind == LABEL_in)
+        else if (p->kind == IF_in && p->next != NULL && p->next->next != NULL &&
+                 p->next->kind == GOTO_in && p->next->next->kind == LABEL_in)
         {
-            if (p->kind == IF_in)
+            if (p->recop.op3->value == p->next->next->singop.op->value)
             {
-                if (p->recop.op3->value == p->next->next->singop.op->value)
-                {
-                    reverse_relop(p->recop.relop->name);
-                    p->recop.op3->value = p->next->singop.op->value;
-                    remove_intercode(p->next);
-                    remove_intercode(p->next);
-                }
+                reverse_relop(p->recop.relop->name);
+                Operand *tmp = new_label();
+                tmp->value = p->next->singop.op->value;
+                p->recop.op3 = tmp;
+                remove_intercode(p->next->next);
+                remove_intercode(p->next);
             }
         }
         // if x relop y goto label1
         //  goto label2
         //  label1  一类的语句
         // 改为if x !relop y goto label2
+    }
+}
 
+void clear1()
+{
+    for (InterCode *p = intercode_head; p; p = p->next)
+    {
         if (p->para_num == 3 && p->triop.op1->kind == CONSTANT_operand &&
             p->triop.op2->kind == CONSTANT_operand)
         {

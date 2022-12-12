@@ -41,8 +41,8 @@ enum Intercode_kind
 
 typedef struct Operand_
 {
-    enum Operand_kind kind; //不同的类型，如立即数，参数，函数
-    enum Operand_type       //是普通操作数还是取地址，取值
+    enum Operand_kind kind; // 不同的类型，如立即数，参数，函数
+    enum Operand_type       // 是普通操作数还是取地址，取值
     {
         Normal,
         Address,
@@ -50,9 +50,9 @@ typedef struct Operand_
     } type;
     char name[30];
     int value;
-    Type *variable; //对应的变量
-    struct Operand_*next;
-    int offset;//lab4使用，离fp的距离
+    Type *variable; // 对应的变量
+    struct Operand_ *next;
+    int offset; // lab4使用，离fp的距离
 } Operand;
 
 typedef struct InterCode_
@@ -84,7 +84,7 @@ typedef struct InterCode_
 
 void trans_init();
 void insert_intercode(InterCode *k);
-void remove_intercode(InterCode*k);
+void remove_intercode(InterCode *k);
 Operand *new_operand(enum Operand_kind kind, int type, char *name);
 void new_intercode(enum Intercode_kind kind, Operand *res,
                    Operand *op1, Operand *op2, Operand *op3);
@@ -108,13 +108,14 @@ void trans_ExtDecList(Node *k);
 void trans_Dec(Node *k);
 ListNode *trans_VarDec(Node *k);
 void trans_stmt(Node *k);
-Operand *trans_exp(Node *k);
+Operand *trans_exp(Node *k, bool flag);
 Operand *trans_arg(Node *k);
 void trans_cond(Node *k, Operand *true_label, Operand *false_label);
 
 void trans_read(Node *k);
 Operand *copy_operand(Operand *k);
 char *para_name(int k);
-void reverse_relop(char*name);
+void reverse_relop(char *name);
 void clear();
+void clear1();
 void clear2();

@@ -8,6 +8,7 @@ Reg_descriper reg[32];    // 32个寄存器
 int fp_offset = 0;        // 记录当前层离fp有多远
 Operand *var_list = NULL; // 对于*x类的变量，需要把它关联到x，所以用该变量记录所有x
 extern InterCode *intercode_head;
+extern int cond_num;
 /*
 arg1
 arg2
@@ -18,6 +19,16 @@ param1
 param2
 param3
 */
+
+int loop_count = 0;
+void loop()
+{
+    loop_count++;
+    printf("loop%d:\n", loop_count);
+    printf("loop%d:\n", loop_count + 1);
+    printf("    j loop%d\n", loop_count);
+    loop_count++;
+}
 
 void init_reg()
 {
@@ -83,10 +94,8 @@ int para_var_count(InterCode *x)
     return now;
 }
 
-int find_op_offset(Operand *x)
+Operand *find_var(Operand *x)
 {
-    if (x->offset != -1)
-        return x->offset;
     // 在参数变量表里找
     Operand *now = var_list;
     while (now)
@@ -94,17 +103,15 @@ int find_op_offset(Operand *x)
         if (op_equal(x, now))
         {
             x->offset = now->offset;
-            return x->offset;
+            return now;
         }
         now = now->next;
     }
-    return -1;
+    return NULL;
 }
 
 void push_op(Operand *x)
 {
-    if (x->kind != PARA_operand && x->kind != TMP_operand)
-        return;
     fp_offset -= 4;
     x->offset = fp_offset; // 记录变量的位置
 #ifdef DEBUG
@@ -112,7 +119,6 @@ void push_op(Operand *x)
     print_operand(x);
     printf(" offset = %d]\n", x->offset);
 #endif
-    add_op(x);
 }
 
 void save_all_reg()
@@ -125,9 +131,8 @@ void save_all_reg()
         Operand *now = reg[i].var_store;
         if (now == NULL)
             continue;
-        if (now->type == Address)
-            continue; // 如果存的不是变量而是地址，不能存回
-        if (now->kind == PARA_operand || now->kind == TMP_operand)
+        if ((now->kind == PARA_operand || now->kind == TMP_operand) &&
+            now->type != Star)
             printf("  sw %s, %d($fp)\n", reg[i].name, now->offset); // 变量值存回栈
         reg[i].var_store = NULL;
         reg[i].age = 0;
@@ -139,10 +144,20 @@ int get_reg(Operand *x)
     bool flag = 0; // 记录是否入栈
                    // 首先检查是否已入栈（参数和变量需要）
     if ((x->kind == PARA_operand || x->kind == TMP_operand) &&
-        find_op_offset(x) == -1)
-        push_op(x);
-    else
-        flag = 1;
+        x->type != Star)
+    {
+        Operand *tmp = find_var(x);
+        if (tmp == NULL && x->offset == -1)
+        {
+            push_op(x);
+            add_op(x);
+            find_var(NULL);
+        }
+        else
+        {
+            flag = 1;
+        }
+    }
 
     // 更新寿命
     for (int i = 8; i <= 25; i++)
@@ -164,6 +179,7 @@ int get_reg(Operand *x)
             print_operand(x);
             printf(" -> existed reg %d %s]\n", i, reg[i].name);
 #endif
+
             return i;
         }
     } // 如果已在则直接返回
@@ -208,38 +224,47 @@ int get_reg(Operand *x)
 #endif
     }
 
-    reg[target].age = 0;
-    reg[target].var_store = x;
-    if (x->kind == PARA_operand || x->kind == TMP_operand)
+    if (x->type == Address)
+    { // 特殊的取值,因为第一次出现&x我们也知道它的值
+        reg[target].age = 0;
+        reg[target].var_store = x;
+        Operand *tmp_x = copy_operand(x);
+        tmp_x->type = Normal;
+        Operand *offset_1 = find_var(tmp_x);
+        // 找到x的偏移量，再算&x
+        printf("  addi %s, $fp, %d\n", reg[target].name, offset_1->offset);
+    }
+    else if (x->type == Star)
     {
-        if (x->type == Address)
-        { // 特殊的取值,因为第一次出现&x我们也知道它的值
-            Operand *tmp_x = copy_operand(x);
-            tmp_x->type = Normal;
-            int offset_1 = find_op_offset(tmp_x);
-            // 找到x的偏移量，再算&x
-            printf("  addi %s, $fp, %d\n", reg[target].name, offset_1);
-        }
-        else if (x->type == Star)
-        {
-            Operand *tmp_x = copy_operand(x);
-            tmp_x->type = Normal;
-            target = get_reg(tmp_x);
-            // 找到x的寄存器
-        }
-        else if (flag == 1)
-        { // 如果是未入栈的,则第一次只需要安排入栈和分配寄存器即可,不需要往寄存器里加载值
+        reg[target].age = 0;
+        Operand *tmp_x = copy_operand(x);
+        tmp_x->type = Normal;
+        target = get_reg(tmp_x);
+        // 找到x的寄存器
+    }
+    else if (x->kind == PARA_operand || x->kind == TMP_operand)
+    {
+        reg[target].age = 0;
+        reg[target].var_store = x;
+        if (flag == 1)
+        { // 第一次入栈不需要取值
             printf("  lw %s, %d($fp)\n", reg[target].name, x->offset);
         }
     }
     else
+    { // 常数
+        reg[target].age = 0;
+        reg[target].var_store = x;
         printf("  li %s, %d\n", reg[target].name, x->value);
-
+    }
     return target;
 }
 
 void into_func()
 {
+    fp_offset = 0;   // 重置偏移量
+    var_list = NULL; // 变量为空
+
     // push ebp
     printf("  addi $sp, $sp, -8\n");
     printf("  sw $ra, 4($sp)\n");
@@ -272,6 +297,7 @@ void object_read()
     InterCode *p = intercode_head;
     while (p != NULL)
     { // 解析每条指令
+    cond_num++;
         if (p->kind == LABEL_in)
         {
             save_all_reg();
@@ -279,11 +305,12 @@ void object_read()
         }
         else if (p->kind == FUNCTION_in)
         {
+
             printf("\n");
             print_operand(p->singop.op);
             printf(":\n");
-
             into_func();
+
             // 获取参数
             int tmp_offset = 1 * 4 + 4;
             // 因为有个ra
@@ -293,7 +320,6 @@ void object_read()
             printf("    [ %s paranum = %d]\n", p->singop.op->name, p->singop.op->value);
 #endif
             p = p->next;
-            fp_offset = 0; // 重置偏移量
             while (p->kind == PARAM_in)
             {
                 Operand *op = p->singop.op;
@@ -314,6 +340,7 @@ void object_read()
         {
             int reg1 = get_reg(p->singop.op);
             printf("  move $v0, %s\n", reg[reg1].name); // 保存返回值
+            save_all_reg();
             leave_func();
         }
         else if (p->kind == ARG_in)
@@ -324,20 +351,6 @@ void object_read()
                 i++;
                 Operand *x = p->singop.op;
                 int target = get_reg(x);
-
-                if (x->type == Address)
-                { // 特殊的取值,因为第一次出现&x我们也知道它的值
-                    Operand *tmp_x = copy_operand(x);
-                    tmp_x->type = Normal;
-                    int offset_1 = find_op_offset(tmp_x);
-                    // 找到x的偏移量，再算&x
-                    printf("  addi %s, $fp, %d\n", reg[target].name, offset_1);
-                }
-                else if (x->type == Star)
-                { // 如果是取值，则取值
-                    printf("  lw %s, 0(%s)\n", reg[target].name, reg[target].name);
-                }
-
                 printf("  sw %s, -%d($sp)\n", reg[target].name, i * 4);
                 p = p->next;
             }
@@ -350,6 +363,10 @@ void object_read()
         }
         else if (p->kind == READ_in)
         {
+            if (p->singop.op->type == Star || p->singop.op->type == Address)
+            {
+                loop();
+            }
             printf("  jal read\n");
             int reg1 = get_reg(p->singop.op);
             printf("  move %s, $v0\n", reg[reg1].name);
@@ -357,17 +374,9 @@ void object_read()
         else if (p->kind == WRITE_in)
         {
             int target = get_reg(p->singop.op);
-            if (p->singop.op->type == Address)
-            { // 特殊的取值,因为第一次出现&x我们也知道它的值
-                Operand *tmp_x = copy_operand(p->singop.op);
-                tmp_x->type = Normal;
-                int offset_1 = find_op_offset(tmp_x);
-                // 找到x的偏移量，再算&x
-                printf("  addi %s, $fp, %d\n", reg[target].name, offset_1);
-            }
-            else if (p->singop.op->type == Star)
-            { // 如果是取值，则取值
-                printf("  lw %s, 0(%s)\n", reg[target].name, reg[target].name);
+            if (p->singop.op->type == Star || p->singop.op->type == Address)
+            {
+                loop();
             }
             printf("  move $a0, %s\n", reg[target].name);
             printf("  jal write\n");
@@ -379,11 +388,19 @@ void object_read()
             int reg1 = get_reg(op1); //* []
             int reg2 = get_reg(op2); //* & [] #
             if (op1->type == Star)
-            { //*x= [] #
+            { //*x= []
+                if (op2->type == Star || op2->type == Address)
+                {
+                    loop();
+                }
                 printf("  sw %s, 0(%s)\n", reg[reg2].name, reg[reg1].name);
             }
             else
-            { // x= * & [] #
+            { // x= * & []
+                if (op1->type == Address)
+                {
+                    loop();
+                }
                 if (op2->type == Star)
                     printf("  lw %s, 0(%s)\n", reg[reg1].name, reg[reg2].name);
                 else
@@ -392,7 +409,7 @@ void object_read()
         }
         else if (p->kind == DEC_in)
         {
-            push_op(p->binop.op1);
+            get_reg(p->binop.op1);
             fp_offset -= p->binop.op2->value - 4;
             p->binop.op1->offset = fp_offset;
 #ifdef DEBUG
@@ -434,14 +451,14 @@ void object_read()
             else if (p->kind == MINUS_in)
             {
                 // 有常数
-                if (op1->kind == CONSTANT_operand)
+        /*        if (op1->kind == CONSTANT_operand)
                     printf("  addi %s, %s, %d\n", reg[reg3].name,
                            reg[reg2].name, -op1->value);
                 else if (op2->kind == CONSTANT_operand)
                     printf("  addi %s, %s, %d\n", reg[reg3].name,
                            reg[reg1].name, -op2->value);
                 // 无常数
-                else
+                else*/
                     printf("  sub %s, %s, %s\n", reg[reg3].name,
                            reg[reg1].name, reg[reg2].name);
             }
@@ -458,9 +475,9 @@ void object_read()
         }
         else if (p->kind == IF_in)
         {
-            save_all_reg(); // 一个基本块的结束
             int reg1 = get_reg(p->recop.op1);
             int reg2 = get_reg(p->recop.op2);
+            save_all_reg(); // 一个基本块的结束
 
             if (strcmp(p->recop.relop->name, "==") == 0)
                 printf("  beq ");

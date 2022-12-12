@@ -7,7 +7,7 @@ int func_b(int n) {
   int j;
   while (i < n) {
     j = func_a(n, i);
-    if (j == 0) {
+    if (!j) {
       return 0;
     }
     i = i + 1;
