@@ -25,7 +25,6 @@ void loop()
 {
     loop_count++;
     printf("loop%d:\n", loop_count);
-    printf("loop%d:\n", loop_count + 1);
     printf("    j loop%d\n", loop_count);
     loop_count++;
 }
@@ -72,7 +71,7 @@ void init_reg()
     strcpy(reg[29].name, "$sp"); // ESP
     strcpy(reg[30].name, "$fp"); // EBP
     strcpy(reg[31].name, "$ra");
-    // 可用寄存器：t0-t9,s0-s7
+    // 可用寄存器：t0-t9,s0-s7，即8-25号
 }
 
 void add_op(Operand *x)
@@ -112,7 +111,7 @@ Operand *find_var(Operand *x)
 
 void push_op(Operand *x)
 {
-    fp_offset -= 4;
+    fp_offset -= 4;        // 数组的空间在DEC语句里处理
     x->offset = fp_offset; // 记录变量的位置
 #ifdef DEBUG
     printf("    [op ");
@@ -151,7 +150,6 @@ int get_reg(Operand *x)
         {
             push_op(x);
             add_op(x);
-            find_var(NULL);
         }
         else
         {
@@ -179,7 +177,7 @@ int get_reg(Operand *x)
             print_operand(x);
             printf(" -> existed reg %d %s]\n", i, reg[i].name);
 #endif
-
+            reg[i].age = 0; // 关键点！气死我了
             return i;
         }
     } // 如果已在则直接返回
@@ -212,11 +210,12 @@ int get_reg(Operand *x)
         }
         // 返回应该被替换的编号
         target = oldest;
-        Operand *now = reg[oldest].var_store; // 注意寄存器不止存一个Op
+        Operand *now = reg[oldest].var_store;
         if (now->kind == PARA_operand || now->kind == TMP_operand)
+        {
             printf("  sw %s, %d($fp)\n", reg[oldest].name, now->offset);
-            // 把里面的存回栈，注意只有参数和变量需要
-
+        }
+        // 把里面的存回栈，注意只有参数和变量需要
 #ifdef DEBUG
         printf("    [");
         print_operand(x);
@@ -224,7 +223,13 @@ int get_reg(Operand *x)
 #endif
     }
 
-    if (x->type == Address)
+    if (x->kind == CONSTANT_operand)
+    { // 常数
+        reg[target].age = 0;
+        reg[target].var_store = x;
+        printf("  li %s, %d\n", reg[target].name, x->value);
+    }
+    else if (x->type == Address)
     { // 特殊的取值,因为第一次出现&x我们也知道它的值
         reg[target].age = 0;
         reg[target].var_store = x;
@@ -251,12 +256,7 @@ int get_reg(Operand *x)
             printf("  lw %s, %d($fp)\n", reg[target].name, x->offset);
         }
     }
-    else
-    { // 常数
-        reg[target].age = 0;
-        reg[target].var_store = x;
-        printf("  li %s, %d\n", reg[target].name, x->value);
-    }
+
     return target;
 }
 
@@ -297,7 +297,7 @@ void object_read()
     InterCode *p = intercode_head;
     while (p != NULL)
     { // 解析每条指令
-    cond_num++;
+        cond_num++;
         if (p->kind == LABEL_in)
         {
             save_all_reg();
@@ -316,6 +316,7 @@ void object_read()
             // 因为有个ra
             int sp_offset = para_var_count(p);
             printf("  addi $sp, $sp, -%d\n", sp_offset);
+            // 给变量预留空间
 #ifdef DEBUG
             printf("    [ %s paranum = %d]\n", p->singop.op->name, p->singop.op->value);
 #endif
@@ -437,30 +438,31 @@ void object_read()
             if (p->kind == PLUS_in)
             {
                 // 有常数
-                if (op1->kind == CONSTANT_operand)
-                    printf("  addi %s, %s, %d\n", reg[reg3].name,
-                           reg[reg2].name, op1->value);
-                else if (op2->kind == CONSTANT_operand)
-                    printf("  addi %s, %s, %d\n", reg[reg3].name,
-                           reg[reg1].name, op2->value);
-                // 无常数
-                else
-                    printf("  add %s, %s, %s\n", reg[reg3].name,
-                           reg[reg1].name, reg[reg2].name);
+                /*       if (op1->kind == CONSTANT_operand)
+                           printf("  addi %s, %s, %d\n", reg[reg3].name,
+                                  reg[reg2].name, op1->value);
+                       else if (op2->kind == CONSTANT_operand)
+                           printf("  addi %s, %s, %d\n", reg[reg3].name,
+                                  reg[reg1].name, op2->value);
+                       // 无常数
+                       else*/
+                // 别用这些，已经把常数存进寄存器了……找罪受
+                printf("  add %s, %s, %s\n", reg[reg3].name,
+                       reg[reg1].name, reg[reg2].name);
             }
             else if (p->kind == MINUS_in)
             {
                 // 有常数
-        /*        if (op1->kind == CONSTANT_operand)
-                    printf("  addi %s, %s, %d\n", reg[reg3].name,
-                           reg[reg2].name, -op1->value);
-                else if (op2->kind == CONSTANT_operand)
-                    printf("  addi %s, %s, %d\n", reg[reg3].name,
-                           reg[reg1].name, -op2->value);
-                // 无常数
-                else*/
-                    printf("  sub %s, %s, %s\n", reg[reg3].name,
-                           reg[reg1].name, reg[reg2].name);
+                /*        if (op1->kind == CONSTANT_operand)
+                            printf("  addi %s, %s, %d\n", reg[reg3].name,
+                                   reg[reg2].name, -op1->value);
+                        else if (op2->kind == CONSTANT_operand)
+                            printf("  addi %s, %s, %d\n", reg[reg3].name,
+                                   reg[reg1].name, -op2->value);
+                        // 无常数
+                        else*/
+                printf("  sub %s, %s, %s\n", reg[reg3].name,
+                       reg[reg1].name, reg[reg2].name);
             }
             else if (p->kind == STAR_in)
             {

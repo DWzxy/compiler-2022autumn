@@ -41,8 +41,8 @@ int main(int argc, char **argv)
     //  clear();
     //  clear1();
     //   clear2();
-    print_all_intercode();
-    printf("\n\n");
+//    print_all_intercode();
+ //   printf("\n\n");
 
     // 机器代码生成
     if (argc > 2)

@@ -46,8 +46,8 @@ changeCal:
   addi $sp, $sp, -432
   lw $t0, 8($fp)
   li $t2, 345
-  addi $t1, $t0, 345
-  addi $t3, $t1, -345
+  add $t1, $t0, $t2
+  sub $t3, $t1, $t2
   mul $t4, $t0, $t5
   add $t6, $t3, $t4
   mul $t7, $t0, $t5
@@ -95,7 +95,7 @@ changeCal:
   li $s6, 7
   sw $s7, -56($fp)
   li $s7, 6
-  addi $s5, $s7, 7
+  add $s5, $s6, $s7
   sw $t9, -60($fp)
   li $t9, 11
   mul $t8, $t9, $s2
@@ -145,10 +145,10 @@ main:
   sw $ra, 4($sp)
   sw $fp, 0($sp)
   move $fp, $sp
-  addi $sp, $sp, -1380
+  addi $sp, $sp, -1476
   li $t1, 7
   li $t2, 6
-  addi $t0, $t2, 7
+  add $t0, $t1, $t2
   li $t4, 11
   li $t5, 1
   mul $t3, $t4, $t5
@@ -156,9 +156,9 @@ main:
   move $t7, $t6
   li $s1, 8
   li $s2, 4
-  addi $s0, $s2, -8
+  sub $s0, $s1, $s2
   move $s3, $s0
-  addi $s4, $s2, 4
+  add $s4, $s2, $s2
   li $s6, 5
   mul $s5, $s6, $t2
   li $t8, 3
@@ -166,7 +166,7 @@ main:
   mflo $s7
   add $t9, $s4, $s7
   sw $t0, -4($fp)
-  addi $t0, $t9, -4
+  sub $t0, $t9, $s2
   move $t1, $t0
   add $t2, $t7, $s3
   sw $t3, -8($fp)
@@ -209,40 +209,65 @@ main:
   sub $t6, $t4, $s1
   add $t7, $t6, $s6
   move $s6, $t7
-  move $a0, $s3
+  sw $s0, -72($fp)
+  sw $s1, -76($fp)
+  li $s1, 4
+  add $s0, $s1, $s1
+  sw $s2, -80($fp)
+  mul $s2, $s1, $s1
+  sw $s3, -16($fp)
+  sub $s3, $s0, $s2
+  sw $s4, -24($fp)
+  div $s1, $s1
+  mflo $s4
+  sw $s5, -84($fp)
+  sub $s5, $s3, $s4
+  sw $s6, -88($fp)
+  lw $s6, -24($fp)
+  move $s6, $s5
+  sw $s7, -92($fp)
+  lw $s7, -16($fp)
+  move $a0, $s7
   jal write
-  move $a0, $s4
+  move $a0, $s6
   jal write
   move $a0, $t3
   jal write
   move $a0, $t5
   jal write
-  move $a0, $s1
+  lw $t8, -76($fp)
+  move $a0, $t8
   jal write
-  move $a0, $s6
+  sw $t9, -96($fp)
+  lw $t9, -88($fp)
+  move $a0, $t9
   jal write
   sw $t1, -100($fp)
+  li $t1, 8
+  sub $t0, $t1, $s1
+  move $s6, $t0
+  sw $t0, -140($fp)
   sw $t2, -104($fp)
   sw $t3, -48($fp)
   sw $t4, -108($fp)
   sw $t5, -60($fp)
   sw $t6, -112($fp)
   sw $t7, -116($fp)
-  sw $s0, -72($fp)
-  sw $s1, -76($fp)
-  sw $s2, -80($fp)
-  sw $s3, -16($fp)
-  sw $s4, -24($fp)
-  sw $s5, -84($fp)
-  sw $s6, -88($fp)
-  sw $s7, -92($fp)
-  sw $t9, -96($fp)
+  sw $s0, -120($fp)
+  sw $s2, -124($fp)
+  sw $s3, -128($fp)
+  sw $s4, -132($fp)
+  sw $s5, -136($fp)
+  sw $s6, -24($fp)
+  sw $s7, -16($fp)
+  sw $t8, -76($fp)
+  sw $t9, -88($fp)
 LABEL3:
   lw $t1, -24($fp)
   lw $t2, -16($fp)
   sub $t0, $t1, $t2
   lw $t3, -88($fp)
-  sw $t0, -120($fp)
+  sw $t0, -144($fp)
   sw $t1, -24($fp)
   sw $t2, -16($fp)
   sw $t3, -88($fp)
@@ -255,21 +280,21 @@ LABEL1:
   lw $t4, -92($fp)
   add $t3, $t4, $t0
   li $t6, 3
-  addi $t5, $t3, 3
-  addi $t7, $t5, 4
+  add $t5, $t3, $t6
+  add $t7, $t5, $t2
   li $s1, 5
-  addi $s0, $t7, 5
+  add $s0, $t7, $s1
   move $t4, $s0
   lw $s2, -24($fp)
   sw $s2, -4($sp)
   addi $sp, $sp, -4
-  sw $t0, -124($fp)
+  sw $t0, -148($fp)
   sw $t1, -96($fp)
-  sw $t3, -128($fp)
+  sw $t3, -152($fp)
   sw $t4, -92($fp)
-  sw $t5, -132($fp)
-  sw $t7, -136($fp)
-  sw $s0, -140($fp)
+  sw $t5, -156($fp)
+  sw $t7, -160($fp)
+  sw $s0, -164($fp)
   sw $s2, -24($fp)
   jal changeCal
   move $t0, $v0
@@ -287,47 +312,47 @@ LABEL1:
   move $s4, $s3
   lw $s6, -96($fp)
   li $s7, 1
-  addi $s5, $s6, 1
+  add $s5, $s6, $s7
   li $t9, 0
-  addi $t8, $s5, 0
+  add $t8, $s5, $t9
   move $s6, $t8
-  sw $t0, -144($fp)
-  sw $t1, -148($fp)
+  sw $t0, -168($fp)
+  sw $t1, -172($fp)
   li $t1, 3
-  addi $t0, $s6, 3
+  add $t0, $s6, $t1
   sw $t2, -88($fp)
-  addi $t2, $t0, 1
+  add $t2, $t0, $s7
   move $s6, $t2
-  sw $t3, -152($fp)
-  addi $t3, $s6, -2
+  sw $t3, -176($fp)
+  sub $t3, $s6, $t5
   sw $t4, -16($fp)
-  addi $t4, $t3, -2
+  sub $t4, $t3, $t5
   move $s6, $t4
   div $s6, $t1
   mflo $t5
-  sw $t6, -156($fp)
+  sw $t6, -180($fp)
   mul $t6, $t5, $t1
-  sw $t7, -160($fp)
+  sw $t7, -184($fp)
   sub $t7, $s6, $t6
   sw $s0, -48($fp)
   lw $s0, -16($fp)
   sw $s0, -4($sp)
   addi $sp, $sp, -4
-  sw $t0, -184($fp)
-  sw $t2, -188($fp)
-  sw $t3, -192($fp)
-  sw $t4, -196($fp)
-  sw $t5, -200($fp)
-  sw $t6, -204($fp)
-  sw $t7, -208($fp)
+  sw $t0, -208($fp)
+  sw $t2, -212($fp)
+  sw $t3, -216($fp)
+  sw $t4, -220($fp)
+  sw $t5, -224($fp)
+  sw $t6, -228($fp)
+  sw $t7, -232($fp)
   sw $s0, -16($fp)
   sw $s1, -60($fp)
-  sw $s2, -164($fp)
-  sw $s3, -168($fp)
-  sw $s4, -172($fp)
-  sw $s5, -176($fp)
+  sw $s2, -188($fp)
+  sw $s3, -192($fp)
+  sw $s4, -196($fp)
+  sw $s5, -200($fp)
   sw $s6, -96($fp)
-  sw $t8, -180($fp)
+  sw $t8, -204($fp)
   jal changeCal
   move $t0, $v0
   lw $t2, -16($fp)
@@ -338,85 +363,85 @@ LABEL1:
   lw $t7, -48($fp)
   add $t6, $t5, $t7
   sub $s0, $t6, $t7
-  lw $s1, -208($fp)
-  sw $t0, -212($fp)
-  sw $t1, -216($fp)
+  lw $s1, -232($fp)
+  sw $t0, -236($fp)
+  sw $t1, -240($fp)
   sw $t2, -16($fp)
-  sw $t3, -220($fp)
+  sw $t3, -244($fp)
   sw $t4, -24($fp)
-  sw $t5, -224($fp)
-  sw $t6, -228($fp)
+  sw $t5, -248($fp)
+  sw $t6, -252($fp)
   sw $t7, -48($fp)
-  sw $s0, -232($fp)
-  sw $s1, -208($fp)
+  sw $s0, -256($fp)
+  sw $s1, -232($fp)
   beq $s1, $s0, LABEL4
   j LABEL5
 LABEL4:
   lw $t1, -88($fp)
   li $t2, 1
-  addi $t0, $t1, 1
-  addi $t3, $t0, 1
+  add $t0, $t1, $t2
+  add $t3, $t0, $t2
   move $t1, $t3
-  sw $t0, -236($fp)
+  sw $t0, -260($fp)
   sw $t1, -88($fp)
-  sw $t3, -240($fp)
+  sw $t3, -264($fp)
 LABEL5:
   lw $t1, -88($fp)
   li $t2, 2
-  addi $t0, $t1, -2
+  sub $t0, $t1, $t2
   li $t4, 1
-  addi $t3, $t0, 1
+  add $t3, $t0, $t4
   move $t1, $t3
-  sw $t0, -244($fp)
+  sw $t0, -268($fp)
   sw $t1, -88($fp)
-  sw $t3, -248($fp)
+  sw $t3, -272($fp)
   j LABEL3
 LABEL2:
   lw $t1, -92($fp)
   li $t2, 2
-  addi $t0, $t1, -2
+  sub $t0, $t1, $t2
   li $t4, 3
-  addi $t3, $t0, 3
+  add $t3, $t0, $t4
   move $t5, $t3
   move $a0, $t5
   jal write
   lw $t6, -96($fp)
   move $t6, $t1
-  sw $t0, -252($fp)
+  sw $t0, -276($fp)
   sw $t1, -92($fp)
-  sw $t3, -256($fp)
-  sw $t5, -260($fp)
+  sw $t3, -280($fp)
+  sw $t5, -284($fp)
   sw $t6, -96($fp)
 LABEL8:
   li $t1, 1200
   li $t2, 22
-  addi $t0, $t2, 1200
+  add $t0, $t1, $t2
   lw $t3, -92($fp)
-  sw $t0, -264($fp)
+  sw $t0, -288($fp)
   sw $t3, -92($fp)
   bge $t3, $t0, LABEL6
   j LABEL7
 LABEL6:
   lw $t1, -92($fp)
   li $t2, 1024
-  addi $t0, $t1, 1024
+  add $t0, $t1, $t2
   lw $t3, -96($fp)
   move $t3, $t0
   sw $t1, -4($sp)
   addi $sp, $sp, -4
-  sw $t0, -268($fp)
+  sw $t0, -292($fp)
   sw $t1, -92($fp)
   sw $t3, -96($fp)
   jal changeCal
   move $t0, $v0
   li $t2, 1
-  addi $t1, $t0, -1
+  sub $t1, $t0, $t2
   lw $t3, -92($fp)
   move $t3, $t1
   lw $t4, -96($fp)
   move $t4, $t3
-  sw $t0, -272($fp)
-  sw $t1, -276($fp)
+  sw $t0, -296($fp)
+  sw $t1, -300($fp)
   sw $t3, -92($fp)
   sw $t4, -96($fp)
   j LABEL8
@@ -438,11 +463,11 @@ LABEL7:
   li $t7, 0
   move $v0, $t7
   sw $t0, -92($fp)
-  sw $t1, -280($fp)
+  sw $t1, -304($fp)
   sw $t2, -16($fp)
   sw $t3, -24($fp)
-  sw $t4, -284($fp)
-  sw $t5, -288($fp)
+  sw $t4, -308($fp)
+  sw $t5, -312($fp)
   sw $t6, -48($fp)
   move $sp, $fp
   lw $fp, 0($sp)

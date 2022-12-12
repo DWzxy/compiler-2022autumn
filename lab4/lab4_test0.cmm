@@ -16,12 +16,16 @@ int main()
 	int g1 = 42, i = 0;
 	int g, h;
 	f = a + b + c - d - e + f;
+	
+	b=4+4-4*4-4/4;
 	write(a);
 	write(b);
 	write(c);
 	write(d);
 	write(e);
 	write(f);
+	b=8-4;
+	
 	
 	while (b - a < f) {
 		g1 = g1 + i * 4 + 3 + 4 + 5;
