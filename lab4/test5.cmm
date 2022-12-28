@@ -1,0 +1,40 @@
+int f(int k){
+struct Car{
+int wheel[4];
+int height;
+}car;
+int t[10][12][2];
+t[7][2*3][1]=9;
+car.height=k;
+car.wheel[3]=4;
+return t[7][2*3][1]*car.height+car.wheel[3];
+}
+
+int fact(int n)
+{ if (n == 1)
+return n;
+else
+return (n * fact(n - 1));
+} 
+
+int get(int k){
+int y=k;
+return y;
+}
+
+int main()
+{
+int t[7],i=0;
+while(i<7){
+t[i]=i;
+i=i+1;
+}
+
+i=3;
+while(i<7){
+write(get(t[i+read()]));
+i=i+1;
+}
+
+return 0;
+}

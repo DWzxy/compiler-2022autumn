@@ -1,0 +1,40 @@
+v3 := t1
+v4 := t2
+v5 := t3
+t4 := v3 + v4
+v6 := t4
+t5 := v5 * v4
+v7 := t5
+t6 := v3 + v4
+v8 := t6
+x := v8 + #5
+v8 := #5
+x := v8 + #5
+t7 := v7 + v6
+v9 := t7
+t8 := v5 * v8
+v10 := t8
+t9 := v4 - #3
+v11 := t9
+v12 := #2
+t10 := v11 - v12
+v3 := t10
+t11 := v7 - v10
+v4 := t11
+v1 := #0
+v2 := #10
+a := b + c
+b := a - d
+c := b + c
+d := a - d
+A := a + b
+B := c - d
+ARG a
+ARG b
+ARG c
+ARG d
+WRITE a
+WRITE b
+WRITE c
+WRITE d
+RETURN a

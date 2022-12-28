@@ -1,0 +1,31 @@
+int f(int k){
+struct Car{
+int wheel[4];
+int height;
+}car;
+int t[10][12][2];
+t[7][2*3][1]=9;
+car.height=k;
+car.wheel[3]=4;
+return t[7][2*3][1]*car.height+car.wheel[3];
+}
+
+int fact(int n)
+{ if (n == 1)
+return n;
+else
+return (n * fact(n - 1));
+} 
+
+int main()
+{
+//int m, result;
+//m = read();
+//if (m > 1)
+//result = fact(m);
+//else
+//result = 1;
+//write(result);
+write(3+f(4));
+return 0;
+}
