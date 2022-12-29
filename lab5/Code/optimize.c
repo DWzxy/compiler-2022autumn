@@ -1,13 +1,13 @@
 #include "optimize.h"
 
-#define DEBUG
+//#define DEBUG
 
 extern FILE *p;
 extern InterCode *intercode_head;
 
 Block *block_list = NULL; // 所有的基本块
 Block *block_tail = NULL;
-int block_id = 1;
+int block_id = 0;
 int variable_count = 0; // 变量数目
 DAG_pointer *dag_pointer_head = NULL;
 Operand *operand_list = NULL; // 变量列表
@@ -24,14 +24,15 @@ void deal()
 
         block_init();
         build_block(i);
-        print_block();
+        //         print_block();
         build_graph();
-        print_graph();
+        //         print_graph();
+
         live_init();
         live_variable();
-        live_leave();
+        common_expression();
 
-        //      common_expression();
+        live_leave();
     }
 }
 
@@ -39,7 +40,7 @@ void block_init()
 {
     block_list = NULL; // 所有的基本块
     block_tail = NULL;
-    block_id = 1;
+    block_id = 0;
     dag_pointer_head = NULL;
 }
 
@@ -49,6 +50,7 @@ Block *new_block(InterCode *head)
     now->head = head;
     now->tail = NULL;
     now->next = NULL;
+    now->pre = NULL;
     now->edge = NULL;
     now->id = block_id++;
 
@@ -58,6 +60,7 @@ Block *new_block(InterCode *head)
     else
     {
         block_tail->next = now;
+        now->pre = block_tail;
         block_tail = now;
     }
     return now;
@@ -112,6 +115,7 @@ void build_graph()
     exit->head = NULL;
     exit->tail = NULL;
     exit->next = NULL;
+    exit->pre = NULL;
     exit->edge = NULL;
     exit->id = -1;
 
@@ -195,82 +199,87 @@ void optimize_read()
     {
         if (!try_end())
             break;
-        read_str(s);
-        if (Cmp(s, "LABEL"))
+        Operand *x = new_variable();
+        if (Cmp(x->name, "LABEL"))
         {
             read_str(s);
             new_intercode(LABEL_in, NULL, new_function(s), NULL, NULL);
             read_str(s);
         }
-        else if (Cmp(s, "FUNCTION"))
+        else if (Cmp(x->name, "FUNCTION"))
         {
             read_str(s);
             new_intercode(FUNCTION_in, NULL, new_function(s), NULL, NULL);
             read_str(s);
         }
-        else if (Cmp(s, "GOTO"))
+        else if (Cmp(x->name, "GOTO"))
         {
             read_str(s);
             new_intercode(GOTO_in, NULL, new_function(s), NULL, NULL);
         }
-        else if (Cmp(s, "RETURN"))
+        else if (Cmp(x->name, "RETURN"))
         {
             Operand *now = new_variable();
+            now = add_variable(now);
             new_intercode(RETURN_in, NULL, now, NULL, NULL);
         }
-        else if (Cmp(s, "ARG"))
+        else if (Cmp(x->name, "ARG"))
         {
             Operand *now = new_variable();
+            now = add_variable(now);
             new_intercode(ARG_in, NULL, now, NULL, NULL);
         }
-        else if (Cmp(s, "PARAM"))
+        else if (Cmp(x->name, "PARAM"))
         {
             Operand *now = new_variable();
+            now = add_variable(now);
             new_intercode(PARAM_in, NULL, now, NULL, NULL);
         }
-        else if (Cmp(s, "READ"))
+        else if (Cmp(x->name, "READ"))
         {
             Operand *now = new_variable();
+            now = add_variable(now);
             new_intercode(READ_in, NULL, now, NULL, NULL);
         }
-        else if (Cmp(s, "WRITE"))
+        else if (Cmp(x->name, "WRITE"))
         {
             Operand *now = new_variable();
+            now = add_variable(now);
             new_intercode(WRITE_in, NULL, now, NULL, NULL);
         }
-        else if (Cmp(s, "DEC"))
+        else if (Cmp(x->name, "DEC"))
         {
             Operand *now = new_variable();
+            now = add_variable(now);
             int size;
             fscanf(p, "%d", &size);
             new_intercode(DEC_in, NULL, now, new_constant(size), NULL);
         }
-        else if (Cmp(s, "IF"))
+        else if (Cmp(x->name, "IF"))
         {
             char relop[101];
             Operand *op1 = new_variable();
+            op1 = add_variable(op1);
             read_str(relop);
             Operand *op2 = new_variable();
+            op2 = add_variable(op2);
             read_str(s);
             read_str(s);
             new_intercode(IF_in, new_function(relop), op1, op2, new_function(s));
         }
         else
         {
-
-            Operand *x = new_function(s);
-            add_variable(x);
+            x = add_variable(x);
             read_str(s); //:=
-            read_str(s);
-            if (Cmp(s, "CALL"))
+            Operand *y = new_variable();
+            if (Cmp(y->name, "CALL"))
             {
                 Operand *z = new_variable();
                 new_intercode(CALL_in, NULL, x, z, NULL);
                 continue;
             }
 
-            Operand *y = new_function(s);
-            add_variable(y);
+            y = add_variable(y);
             // 下面看有没有z
             bool flag = false;
             char c;
@@ -291,6 +300,7 @@ void optimize_read()
             }
 
             Operand *z = new_variable();
+            z = add_variable(z);
             if (c == '+')
                 new_intercode(PLUS_in, x, y, z, NULL);
             else if (c == '-')
@@ -315,7 +325,6 @@ Operand *new_variable()
         if (c != ' ')
             break;
     }
-
     if (c == '#')
     {
         now->kind = CONSTANT_operand;
@@ -334,7 +343,6 @@ Operand *new_variable()
         read_str(t);
         strcpy(now->name, t);
     }
-    now = add_variable(now);
     return now;
 }
 
@@ -348,10 +356,9 @@ Operand *add_variable(Operand *now)
             return i;
         }
     }
-
     // 新的变量
-    variable_count++;
     now->offset = variable_count;
+    variable_count++;
 #ifdef DEBUG
     printf("new va %d: ", now->offset);
     print_operand(now);
@@ -447,6 +454,34 @@ void common_expression()
             printf("    now trans: ");
             print_intercode(k);
 #endif
+            /*          if (k->kind == ASSIGN_in)
+                      {
+                          DAG_pointer *x = find_DAG_pointer(
+                              &dag_pointer_head, k->binop.op1);
+                          DAG_pointer *y = find_DAG_pointer(
+                              &dag_pointer_head, k->binop.op2);
+                          k->binop.op2 = y->node->pointer->variable;
+                          // 把x指向y
+
+                          if (x->node->pointer == x)
+                              x->node->pointer = NULL;
+                          if (out[i->id][x->variable->offset] == false){
+                               x->node = y->node;
+                               remove_intercode(k);
+                          }
+                          else
+                          {
+                              DAG_node *now = new_dag_node(
+                                  "=", y->node, NULL, k, x);
+                              x->node = now;
+                          }
+          #ifdef DEBUG
+                          print_operand(x->variable);
+                          printf(" = ");
+                          print_operand(y->variable);
+                          printf("\n");
+          #endif
+                      }*/
             if (k->kind == ASSIGN_in)
             {
                 DAG_pointer *x = find_DAG_pointer(
@@ -476,24 +511,27 @@ void common_expression()
                         printf("\n");
 #endif
                         flag = true;
-
                         if (x->node->pointer == x)
+                        {
+                            check_dead_code(x->node, i);
                             x->node->pointer = NULL;
+                        }
                         x->node = now->node;
-                        remove_intercode(k);
+                        if (out[i->id][x->variable->offset] == false)
+                            remove_intercode(k);
                         break;
                     }
                 }
                 if (flag == false)
                 {
-                    DAG_node *now = (DAG_node *)malloc(sizeof(DAG_node));
-                    now->lc = y->node;
-                    now->rc = NULL;
-                    strcpy(now->op, "=");
+                    DAG_node *now = new_dag_node(
+                        "=", y->node, NULL, k, x);
                     if (x->node->pointer == x)
+                    {
+                        check_dead_code(x->node, i);
                         x->node->pointer = NULL;
+                    }
                     x->node = now;
-                    now->pointer = x;
 #ifdef DEBUG
                     print_operand(x->variable);
                     printf(" = ");
@@ -502,6 +540,7 @@ void common_expression()
 #endif
                 }
             }
+
             else
             {
                 DAG_pointer *x = find_DAG_pointer(
@@ -548,21 +587,26 @@ void common_expression()
 #endif
                         flag = true;
                         if (x->node->pointer == x)
+                        {
+                            check_dead_code(x->node, i);
                             x->node->pointer = NULL;
+                        }
                         x->node = now->node;
-                        remove_intercode(k);
+                        if (out[i->id][x->variable->offset] == false)
+                            remove_intercode(k);
                         break;
                     }
                 }
                 if (flag == false)
                 {
-                    DAG_node *now = (DAG_node *)malloc(sizeof(DAG_node));
-                    now->lc = y->node;
-                    now->rc = z->node;
+                    DAG_node *now = new_dag_node(
+                        "", y->node, z->node, k, x);
                     if (x->node->pointer == x)
+                    {
+                        check_dead_code(x->node, i);
                         x->node->pointer = NULL;
+                    }
                     x->node = now;
-                    now->pointer = x;
 
                     if (k->kind == PLUS_in)
                         strcpy(now->op, "+");
@@ -581,6 +625,7 @@ void common_expression()
             if (k == i->tail)
                 break;
         }
+        dead_code(i);
     }
 }
 
@@ -595,24 +640,60 @@ DAG_pointer *find_DAG_pointer(DAG_pointer **head, Operand *x)
     printf("create new %s %d\n", x->name, x->value);
 #endif
 
-    DAG_node *tmp = (DAG_node *)malloc(sizeof(DAG_node));
-    tmp->lc = NULL;
-    tmp->rc = NULL;
-    tmp->op[0] = 0;
-
     DAG_pointer *now = (DAG_pointer *)malloc(sizeof(DAG_pointer));
+    DAG_node *tmp = new_dag_node("", NULL, NULL, NULL, now);
     now->node = tmp;
-
-    tmp->pointer = now;
     now->variable = x;
     now->next = *head;
     *head = now;
     return now;
 }
 
+DAG_node *new_dag_node(char *name, DAG_node *lc,
+                       DAG_node *rc, InterCode *k, DAG_pointer *x)
+{
+    DAG_node *tmp = (DAG_node *)malloc(sizeof(DAG_node));
+    tmp->lc = lc;
+    tmp->rc = rc;
+    tmp->parent = NULL;
+    tmp->pointer = x;
+    tmp->intercode = k;
+    strcpy(tmp->op, name);
+    if (lc != NULL)
+        lc->parent = tmp;
+    if (rc != NULL)
+        rc->parent = tmp;
+    return tmp;
+}
+
+void check_dead_code(DAG_node *x, Block *block)
+{
+    if (x->parent != NULL)
+        return;
+    if (x->intercode == NULL)
+        return;
+    // 检查是否活跃
+    if (out[block->id][x->pointer->variable->offset] == true)
+        return;
+#ifdef DEBUG
+    printf("remove:\n");
+    print_intercode(x->intercode);
+#endif
+    remove_intercode(x->intercode);
+}
+
+void dead_code(Block *x)
+{
+    for (DAG_pointer *i = dag_pointer_head; i; i = i->next)
+    {
+        DAG_node *now = i->node;
+        check_dead_code(now, x);
+    }
+}
+
 void live_init()
 {
-    int m = block_id + 1;
+    int m = block_id;
     int n = variable_count;
     in = (bool **)malloc(sizeof(bool *) * m);
     out = (bool **)malloc(sizeof(bool *) * m);
@@ -627,7 +708,7 @@ void live_init()
 
 void live_leave()
 {
-    int m = block_id + 1;
+    int m = block_id;
     for (int i = 0; i < m; i++)
     {
         free(out[i]);
@@ -639,10 +720,9 @@ void live_leave()
 
 void live_variable()
 {
-    live_init();
     // 块的数目为block_id+1
     // 变量数目为variable_count
-    int m = block_id + 1;
+    int m = block_id;
     int n = variable_count;
     // 第一维是不同的块，第二维是每个变量
     bool if_changed = true;
@@ -650,42 +730,43 @@ void live_variable()
     {
         if_changed = false;
 
-        for (Block *k = block_list; k; k = k->next)
+        for (Block *k = block_tail; k; k = k->pre)
         {
 #ifdef DEBUG
             printf("-------- now refresh block %d --------\n", k->id);
-            for (int j = 1; j <= variable_count; j++)
+            for (int j = 0; j < n; j++)
                 printf("%d ", out[k->id][j]);
             printf("\n-> \n");
 #endif
             // 更新OUT
+            bool *new_out = (bool *)malloc(sizeof(bool) * n);
+            memset(new_out, false, sizeof(bool) * n);
             for (Edge *i = k->edge; i; i = i->next)
             {
                 Block *to = i->to;
                 if (to->id == -1)
                     continue;
-                for (int j = 1; j <= variable_count; j++)
-                    out[k->id][j] |= in[to->id][j];
+                for (int j = 0; j < n; j++)
+                    new_out[j] |= in[to->id][j];
                 // OUT[B] = ∪ S是B的一个后继 IN[S];
             }
+            for (int j = 0; j < n; j++)
+                out[k->id][j] = new_out[j];
+            free(new_out);
 #ifdef DEBUG
-            for (int j = 1; j <= variable_count; j++)
+            for (int j = 0; j < n; j++)
                 printf("%d ", out[k->id][j]);
             printf("\n");
 #endif
 
             // 更新IN
             bool *new_in = (bool *)malloc(sizeof(bool) * n);
-            for (int j = 1; j <= n; j++)
+            for (int j = 0; j < n; j++)
                 new_in[j] = out[k->id][j];
-                          printf("free new_in\n");
-            free(new_in);
-            printf("free new_in\n");
-            continue;
             for (InterCode *i = k->tail; i != k->head->pre; i = i->pre)
             {
-                int def = 0;
-                int use1 = 0, use2 = 0;
+                int def = -1;
+                int use1 = -1, use2 = -1;
                 if (i->kind == ARG_in || i->kind == WRITE_in || i->kind == RETURN_in)
                 {
                     use1 = i->singop.op->offset;
@@ -727,9 +808,12 @@ void live_variable()
                 else
                     continue;
 
-                new_in[def] = false;
-                new_in[use1] = true;
-                new_in[use2] = true;
+                if (def != -1)
+                    new_in[def] = false;
+                if (use1 != -1)
+                    new_in[use1] = true;
+                if (use2 != -1)
+                    new_in[use2] = true;
 #ifdef DEBUG
                 print_intercode(i);
                 printf("def %d  use1 %d  use2 %d\n", def, use1, use2);
@@ -737,7 +821,7 @@ void live_variable()
             }
 #ifdef DEBUG
             printf("IN: ");
-            for (int j = 1; j <= n; j++)
+            for (int j = 0; j < n; j++)
                 printf("%d ", new_in[j]);
             printf("\n");
 
@@ -748,14 +832,31 @@ void live_variable()
             }
             printf("\n");
 #endif
-            for (int j = 1; j <= n; j++)
+            for (int j = 0; j < n; j++)
             {
                 if (new_in[j] != in[k->id][j])
                     if_changed = true;
                 in[k->id][j] = new_in[j];
             }
-            // free(new_in);
+            free(new_in);
         }
+#ifdef DEBUG
+        printf("-------- IN -------\n");
+        for (Block *i = block_list; i; i = i->next)
+        {
+            printf("%d: ", i->id);
+            for (int j = 0; j < n; j++)
+                printf("%d ", in[i->id][j]);
+            printf("\n");
+        }
+        printf("-------- OUT -------\n");
+        for (Block *i = block_list; i; i = i->next)
+        {
+            printf("%d: ", i->id);
+            for (int j = 0; j < n; j++)
+                printf("%d ", out[i->id][j]);
+            printf("\n");
+        }
+#endif
     }
-  //  live_leave();
 }
