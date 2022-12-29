@@ -46,6 +46,7 @@ typedef struct DAG_node_
     struct DAG_node_ *lc;
     struct DAG_node_ *rc;
     struct DAG_node_ *parent;
+    struct DAG_node_ *next;
     struct DAG_pointer_ *pointer; // 互指
     InterCode *intercode;
 } DAG_node;
@@ -63,7 +64,8 @@ DAG_node *new_dag_node(char *name, DAG_node *lc,
                        DAG_node *rc, InterCode *k, DAG_pointer *x);
 
 void check_dead_code(DAG_node *x, Block *block);
-void dead_code(Block *x);
+void dead_code();
+bool operand_equal_minus(Operand *x, Operand *y);
 
 void live_variable();
 void live_init();

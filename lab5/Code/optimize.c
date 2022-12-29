@@ -1,6 +1,6 @@
 #include "optimize.h"
 
-//#define DEBUG
+ //#define DEBUG
 
 extern FILE *p;
 extern InterCode *intercode_head;
@@ -10,6 +10,7 @@ Block *block_tail = NULL;
 int block_id = 0;
 int variable_count = 0; // 变量数目
 DAG_pointer *dag_pointer_head = NULL;
+DAG_node *dag_node_head = NULL;
 Operand *operand_list = NULL; // 变量列表
 bool **in;
 bool **out;
@@ -31,6 +32,7 @@ void deal()
         live_init();
         live_variable();
         common_expression();
+             dead_code();
 
         live_leave();
     }
@@ -356,6 +358,14 @@ Operand *add_variable(Operand *now)
             return i;
         }
     }
+    for (Operand *i = operand_list; i; i = i->next)
+    {
+        if (operand_equal_minus(i, now))
+        {
+            now->offset=i->offset;
+            return now;
+        }
+    }
     // 新的变量
     now->offset = variable_count;
     variable_count++;
@@ -414,6 +424,7 @@ void common_expression()
         printf("---------- block %d ---------\n", i->id);
 #endif
         dag_pointer_head = NULL;
+        dag_node_head = NULL;
         for (InterCode *k = i->head;; k = k->next)
         {
             if (k->para_num != 3 && k->kind != ASSIGN_in)
@@ -625,7 +636,6 @@ void common_expression()
             if (k == i->tail)
                 break;
         }
-        dead_code(i);
     }
 }
 
@@ -663,6 +673,8 @@ DAG_node *new_dag_node(char *name, DAG_node *lc,
         lc->parent = tmp;
     if (rc != NULL)
         rc->parent = tmp;
+    tmp->next = dag_node_head;
+    dag_node_head = tmp;
     return tmp;
 }
 
@@ -672,23 +684,145 @@ void check_dead_code(DAG_node *x, Block *block)
         return;
     if (x->intercode == NULL)
         return;
+    Operand *op = x->pointer->variable;
     // 检查是否活跃
-    if (out[block->id][x->pointer->variable->offset] == true)
-        return;
+    for (DAG_pointer *i = dag_pointer_head; i; i = i->next)
+    {
+        if (i->node == x || operand_equal_minus(
+                                i->node->pointer->variable, op))
+        {
+            if (out[block->id][i->variable->offset] == true)
+                return;
+        }
+    }
+
 #ifdef DEBUG
     printf("remove:\n");
     print_intercode(x->intercode);
 #endif
     remove_intercode(x->intercode);
+    x->intercode = NULL;
 }
 
-void dead_code(Block *x)
+void dead_code()
 {
-    for (DAG_pointer *i = dag_pointer_head; i; i = i->next)
+    for (Block *i = block_list; i; i = i->next)
     {
-        DAG_node *now = i->node;
-        check_dead_code(now, x);
+        dag_pointer_head = NULL;
+        dag_node_head = NULL;
+        for (InterCode *k = i->head;; k = k->next)
+        {
+            if (k->para_num != 3 && k->kind != ASSIGN_in)
+            { // 只替换
+                if (k->kind == ARG_in)
+                {
+                    DAG_pointer *x = find_DAG_pointer(
+                        &dag_pointer_head, k->singop.op);
+                    x->node->intercode = NULL;
+                }
+                else if (k->kind == RETURN_in)
+                {
+                    DAG_pointer *x = find_DAG_pointer(
+                        &dag_pointer_head, k->singop.op);
+                    x->node->intercode = NULL;
+                }
+                else if (k->kind == WRITE_in)
+                {
+                    DAG_pointer *x = find_DAG_pointer(
+                        &dag_pointer_head, k->singop.op);
+                    x->node->intercode = NULL;
+                }
+                else if (k->kind == IF_in)
+                {
+                    DAG_pointer *x = find_DAG_pointer(
+                        &dag_pointer_head, k->recop.op1);
+                    DAG_pointer *y = find_DAG_pointer(
+                        &dag_pointer_head, k->recop.op2);
+                    x->node->intercode = NULL;
+                    y->node->intercode = NULL;
+                }
+                if (k == i->tail)
+                    break;
+                continue;
+            }
+            if (k->kind == ASSIGN_in)
+            {
+                DAG_pointer *x = find_DAG_pointer(
+                    &dag_pointer_head, k->binop.op1);
+                DAG_pointer *y = find_DAG_pointer(
+                    &dag_pointer_head, k->binop.op2);
+
+                DAG_node *now = new_dag_node(
+                    "=", y->node, NULL, k, x);
+                if (x->node->pointer == x)
+                {
+                    check_dead_code(x->node, i);
+                    x->node->pointer = NULL;
+                }
+                x->node = now;
+#ifdef DEBUG
+                print_operand(x->variable);
+                printf(" = ");
+                print_operand(y->variable);
+                printf("\n");
+#endif
+            }
+            else
+            {
+                DAG_pointer *x = find_DAG_pointer(
+                    &dag_pointer_head, k->triop.result);
+                DAG_pointer *y = find_DAG_pointer(
+                    &dag_pointer_head, k->triop.op1);
+                DAG_pointer *z = find_DAG_pointer(
+                    &dag_pointer_head, k->triop.op2);
+
+                DAG_node *now = new_dag_node(
+                    "", y->node, z->node, k, x);
+                if (x->node->pointer == x)
+                {
+                    check_dead_code(x->node, i);
+                    x->node->pointer = NULL;
+                }
+                x->node = now;
+
+                if (k->kind == PLUS_in)
+                    strcpy(now->op, "+");
+                else if (k->kind == MINUS_in)
+                    strcpy(now->op, "-");
+                else if (k->kind == STAR_in)
+                    strcpy(now->op, "*");
+                else if (k->kind == DIV_in)
+                    strcpy(now->op, "/");
+            }
+#ifdef DEBUG
+            printf("    trans over: ");
+            print_intercode(k);
+#endif
+            if (k == i->tail)
+                break;
+        }
+        for (DAG_pointer *k = dag_pointer_head; k; k = k->next)
+        {
+            DAG_node *now = k->node;
+            if (now->pointer != k)
+                continue;
+            if (k->variable->type != Normal)
+                continue;
+   //         check_dead_code(now, i);
+        }
     }
+}
+
+bool operand_equal_minus(Operand *x, Operand *y)
+{
+    if (x == NULL || y == NULL)
+        return false;
+    if (x->kind != y->kind)
+        return false;
+    if (x->kind == CONSTANT_operand)
+        return x->value == y->value;
+    else if (x->kind == FUNCTION_operand)
+        return strcmp(x->name, y->name) == 0;
 }
 
 void live_init()
