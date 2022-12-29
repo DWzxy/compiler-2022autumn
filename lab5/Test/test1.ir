@@ -1,3 +1,4 @@
+FUNCTION main :
 v3 := t1
 v4 := t2
 v5 := t3
@@ -23,18 +24,6 @@ t11 := v7 - v10
 v4 := t11
 v1 := #0
 v2 := #10
-a := b + c
-b := a - d
-c := b + c
-d := a - d
-A := a + b
-B := c - d
-ARG a
-ARG b
-ARG c
-ARG d
-WRITE a
-WRITE b
-WRITE c
-WRITE d
-RETURN a
+RETURN #0
+
+

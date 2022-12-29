@@ -11,12 +11,6 @@ typedef struct Block_
     struct Block_ *next;
 } Block;
 
-typedef struct BlockList_
-{
-    Block *block;
-    struct BlockList_ *next;
-} BlockList;
-
 typedef struct Edge_
 {
     Block *from;
@@ -24,10 +18,11 @@ typedef struct Edge_
     struct Edge_ *next;
 } Edge;
 
+void deal();
 void block_init();
 Block *new_block(InterCode *head);
 void new_edge(Block *x, Block *y);
-void build_block();
+void build_block(InterCode *x);
 void build_graph();
 // 找label
 Block *find_block(char *name);
@@ -37,6 +32,7 @@ void print_graph();
 void optimize_read();
 
 Operand *new_variable();
+Operand* add_variable(Operand *x);
 void read_str(char *s);
 bool Cmp(char *a, char *b);
 bool try_end();
@@ -60,4 +56,7 @@ typedef struct DAG_pointer_
 
 void common_expression();
 DAG_pointer *find_DAG_pointer(DAG_pointer **head, Operand *x);
-bool operand_equal(Operand *x, Operand *y);
+
+void live_variable();
+void live_init();
+void live_leave();

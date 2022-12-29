@@ -1,17 +1,46 @@
 #include "optimize.h"
 
-// #define DEBUG
+#define DEBUG
 
 extern FILE *p;
 extern InterCode *intercode_head;
 
 Block *block_list = NULL; // 所有的基本块
 Block *block_tail = NULL;
-BlockList *entry_list = NULL; // 所有的入口
-int block_id = 0;
+int block_id = 1;
+int variable_count = 0; // 变量数目
+DAG_pointer *dag_pointer_head = NULL;
+Operand *operand_list = NULL; // 变量列表
+bool **in;
+bool **out;
+
+void deal()
+{
+    for (InterCode *i = intercode_head; i; i = i->next)
+    {
+        if (i->kind != FUNCTION_in)
+            continue;
+        // 以单个函数为单位
+
+        block_init();
+        build_block(i);
+        print_block();
+        build_graph();
+        print_graph();
+        live_init();
+        live_variable();
+        live_leave();
+
+        //      common_expression();
+    }
+}
 
 void block_init()
 {
+    block_list = NULL; // 所有的基本块
+    block_tail = NULL;
+    block_id = 1;
+    dag_pointer_head = NULL;
 }
 
 Block *new_block(InterCode *head)
@@ -43,11 +72,11 @@ void new_edge(Block *x, Block *y)
     x->edge = now;
 }
 
-void build_block()
+void build_block(InterCode *x)
 {
     bool flag;
-    Block *tmp = new_block(intercode_head);
-    for (InterCode *i = intercode_head; i; i = i->next)
+    Block *tmp = new_block(x);
+    for (InterCode *i = x->next; i; i = i->next)
     {
         flag = false;
         if (i->kind == GOTO_in || i->kind == IF_in ||
@@ -58,63 +87,62 @@ void build_block()
                 i->next->kind == GOTO_in)
                 flag = false;
         }
-
-        if (i->next != NULL && (i->next->kind == FUNCTION_in ||
-                                i->next->kind == LABEL_in))
+        if (i->next != NULL && i->next->kind == LABEL_in)
             flag = true;
-        if (i->next == NULL)
+        if (i->next != NULL && i->next->kind == FUNCTION_in)
             flag = true;
-
-        if (i->kind == FUNCTION_in)
-        {
-            BlockList *now = (BlockList *)malloc(sizeof(BlockList));
-            now->next = entry_list;
-            now->block = tmp;
-            entry_list = now;
-        }
-
-        if (!flag)
-            continue;
 
         tmp->tail = i;
-        if (i->next)
-            tmp = new_block(i->next);
+        if (flag)
+        {
+            if (i->next != NULL && i->next->kind != FUNCTION_in)
+                tmp = new_block(i->next);
+            else
+                break;
+        }
     }
+#ifdef DEBUG
+    printf("variable_count = %d\n", variable_count);
+#endif
 }
 
 void build_graph()
 {
-#ifdef DEBUG
-    printf("[entry] :");
-    for (BlockList *i = entry_list; i; i = i->next)
-    {
-        printf("%d ", i->block->id);
-    }
-    printf("\n");
-#endif
+    Block *exit = (Block *)malloc(sizeof(Block));
+    exit->head = NULL;
+    exit->tail = NULL;
+    exit->next = NULL;
+    exit->edge = NULL;
+    exit->id = -1;
 
-    Block *tmp = block_list;
-    for (InterCode *i = intercode_head; i; i = i->next)
+    for (Block *k = block_list; k; k = k->next)
     {
-        if (i->kind == GOTO_in)
+        for (InterCode *i = k->head; i; i = i->next)
         {
-            Block *to = find_block(i->singop.op->name);
-            new_edge(tmp, to);
-        }
-        else if (i->kind == IF_in)
-        {
-            Block *to = find_block(i->recop.op3->name);
-            new_edge(tmp, to);
-        }
-        if (i == tmp->tail)
-        {
-            if (i->kind != RETURN_in &&
-                i->kind != GOTO_in && i->kind != IF_in)
+            if (i->kind == GOTO_in)
             {
-                if (tmp->next != NULL)
-                    new_edge(tmp, tmp->next);
+                Block *to = find_block(i->singop.op->name);
+                new_edge(k, to);
             }
-            tmp = tmp->next;
+            else if (i->kind == IF_in)
+            {
+                Block *to = find_block(i->recop.op3->name);
+                new_edge(k, to);
+            }
+            else if (i->kind == RETURN_in)
+            {
+                new_edge(k, exit);
+            }
+            if (i == k->tail)
+            {
+                if (i->kind != RETURN_in &&
+                    i->kind != GOTO_in)
+                {
+                    if (k->next != NULL)
+                        new_edge(k, k->next);
+                }
+                break;
+            }
         }
     }
 }
@@ -163,82 +191,86 @@ void optimize_read()
 {
     char c;
     char s[101];
-    Operand *t;
     while (1)
     {
         if (!try_end())
             break;
-        t = new_variable();
-        if (Cmp(t->name, "LABEL"))
+        read_str(s);
+        if (Cmp(s, "LABEL"))
         {
-            Operand *now = new_variable();
             read_str(s);
-            new_intercode(LABEL_in, NULL, now, NULL, NULL);
-        }
-        else if (Cmp(t->name, "FUNCTION"))
-        {
-            Operand *now = new_variable();
+            new_intercode(LABEL_in, NULL, new_function(s), NULL, NULL);
             read_str(s);
-            new_intercode(FUNCTION_in, NULL, now, NULL, NULL);
         }
-        else if (Cmp(t->name, "GOTO"))
+        else if (Cmp(s, "FUNCTION"))
         {
-            Operand *now = new_variable();
-            new_intercode(GOTO_in, NULL, now, NULL, NULL);
+            read_str(s);
+            new_intercode(FUNCTION_in, NULL, new_function(s), NULL, NULL);
+            read_str(s);
         }
-        else if (Cmp(t->name, "RETURN"))
+        else if (Cmp(s, "GOTO"))
+        {
+            read_str(s);
+            new_intercode(GOTO_in, NULL, new_function(s), NULL, NULL);
+        }
+        else if (Cmp(s, "RETURN"))
         {
             Operand *now = new_variable();
             new_intercode(RETURN_in, NULL, now, NULL, NULL);
         }
-        else if (Cmp(t->name, "ARG"))
+        else if (Cmp(s, "ARG"))
         {
             Operand *now = new_variable();
             new_intercode(ARG_in, NULL, now, NULL, NULL);
         }
-        else if (Cmp(t->name, "PARAM"))
+        else if (Cmp(s, "PARAM"))
         {
             Operand *now = new_variable();
             new_intercode(PARAM_in, NULL, now, NULL, NULL);
         }
-        else if (Cmp(t->name, "READ"))
+        else if (Cmp(s, "READ"))
         {
             Operand *now = new_variable();
             new_intercode(READ_in, NULL, now, NULL, NULL);
         }
-        else if (Cmp(t->name, "WRITE"))
+        else if (Cmp(s, "WRITE"))
         {
             Operand *now = new_variable();
             new_intercode(WRITE_in, NULL, now, NULL, NULL);
         }
-        else if (Cmp(t->name, "DEC"))
+        else if (Cmp(s, "DEC"))
         {
             Operand *now = new_variable();
             int size;
             fscanf(p, "%d", &size);
             new_intercode(DEC_in, NULL, now, new_constant(size), NULL);
         }
-        else if (Cmp(t->name, "IF"))
+        else if (Cmp(s, "IF"))
         {
+            char relop[101];
             Operand *op1 = new_variable();
-            Operand *relop = new_variable();
+            read_str(relop);
             Operand *op2 = new_variable();
-            fscanf(p, "%s", s);
-            Operand *op3 = new_variable();
-            new_intercode(IF_in, relop, op1, op2, op3);
+            read_str(s);
+            read_str(s);
+            new_intercode(IF_in, new_function(relop), op1, op2, new_function(s));
         }
         else
         {
-            //:=
-            fscanf(p, "%s", s);
-            Operand *y = new_variable();
-            if (Cmp(y->name, "CALL"))
+
+            Operand *x = new_function(s);
+            add_variable(x);
+            read_str(s); //:=
+            read_str(s);
+            if (Cmp(s, "CALL"))
             {
                 Operand *z = new_variable();
-                new_intercode(CALL_in, NULL, t, z, NULL);
+                new_intercode(CALL_in, NULL, x, z, NULL);
                 continue;
             }
 
+            Operand *y = new_function(s);
+            add_variable(y);
             // 下面看有没有z
             bool flag = false;
             char c;
@@ -254,19 +286,19 @@ void optimize_read()
             }
             if (!flag)
             {
-                new_intercode(ASSIGN_in, NULL, t, y, NULL);
+                new_intercode(ASSIGN_in, NULL, x, y, NULL);
                 continue;
             }
 
             Operand *z = new_variable();
             if (c == '+')
-                new_intercode(PLUS_in, t, y, z, NULL);
+                new_intercode(PLUS_in, x, y, z, NULL);
             else if (c == '-')
-                new_intercode(MINUS_in, t, y, z, NULL);
+                new_intercode(MINUS_in, x, y, z, NULL);
             else if (c == '*')
-                new_intercode(STAR_in, t, y, z, NULL);
+                new_intercode(STAR_in, x, y, z, NULL);
             else if (c == '/')
-                new_intercode(DIV_in, t, y, z, NULL);
+                new_intercode(DIV_in, x, y, z, NULL);
         }
     }
 }
@@ -275,6 +307,7 @@ Operand *new_variable()
 {
     char t[101];
     char c;
+    int tmp;
     Operand *now = new_function("");
 
     while (fscanf(p, "%c", &c))
@@ -286,7 +319,6 @@ Operand *new_variable()
     if (c == '#')
     {
         now->kind = CONSTANT_operand;
-        int tmp;
         fscanf(p, "%d", &tmp);
         now->value = tmp;
     }
@@ -301,6 +333,36 @@ Operand *new_variable()
 
         read_str(t);
         strcpy(now->name, t);
+    }
+    now = add_variable(now);
+    return now;
+}
+
+Operand *add_variable(Operand *now)
+{
+    for (Operand *i = operand_list; i; i = i->next)
+    {
+        if (operand_equal(i, now))
+        {
+            free(now);
+            return i;
+        }
+    }
+
+    // 新的变量
+    variable_count++;
+    now->offset = variable_count;
+#ifdef DEBUG
+    printf("new va %d: ", now->offset);
+    print_operand(now);
+    printf("\n");
+#endif
+    if (operand_list == NULL)
+        operand_list = now;
+    else
+    {
+        now->next = operand_list;
+        operand_list = now;
     }
     return now;
 }
@@ -337,14 +399,14 @@ bool try_end()
 
 void common_expression()
 {
-         DAG_pointer *dag_pointer_head = NULL;
+
     for (Block *i = block_list; i; i = i->next)
     {
 // 一个新的DAG
 #ifdef DEBUG
         printf("---------- block %d ---------\n", i->id);
 #endif
-   
+        dag_pointer_head = NULL;
         for (InterCode *k = i->head;; k = k->next)
         {
             if (k->para_num != 3 && k->kind != ASSIGN_in)
@@ -548,16 +610,152 @@ DAG_pointer *find_DAG_pointer(DAG_pointer **head, Operand *x)
     return now;
 }
 
-bool operand_equal(Operand *x, Operand *y)
+void live_init()
 {
-    if (x == NULL || y == NULL)
-        return false;
-    if (x->kind != y->kind)
-        return false;
-    if (x->type != y->type)
-        return false;
-    if (x->kind == CONSTANT_operand)
-        return x->value == y->value;
-    else if (x->kind == FUNCTION_operand)
-        return Cmp(x->name, y->name);
+    int m = block_id + 1;
+    int n = variable_count;
+    in = (bool **)malloc(sizeof(bool *) * m);
+    out = (bool **)malloc(sizeof(bool *) * m);
+    for (int i = 0; i < m; i++)
+    {
+        out[i] = (bool *)malloc(sizeof(bool) * n);
+        in[i] = (bool *)malloc(sizeof(bool) * n);
+        memset(out[i], false, sizeof(bool) * n);
+        memset(in[i], false, sizeof(bool) * n);
+    }
+}
+
+void live_leave()
+{
+    int m = block_id + 1;
+    for (int i = 0; i < m; i++)
+    {
+        free(out[i]);
+        free(in[i]);
+    }
+    free(out);
+    free(in);
+}
+
+void live_variable()
+{
+    live_init();
+    // 块的数目为block_id+1
+    // 变量数目为variable_count
+    int m = block_id + 1;
+    int n = variable_count;
+    // 第一维是不同的块，第二维是每个变量
+    bool if_changed = true;
+    while (if_changed)
+    {
+        if_changed = false;
+
+        for (Block *k = block_list; k; k = k->next)
+        {
+#ifdef DEBUG
+            printf("-------- now refresh block %d --------\n", k->id);
+            for (int j = 1; j <= variable_count; j++)
+                printf("%d ", out[k->id][j]);
+            printf("\n-> \n");
+#endif
+            // 更新OUT
+            for (Edge *i = k->edge; i; i = i->next)
+            {
+                Block *to = i->to;
+                if (to->id == -1)
+                    continue;
+                for (int j = 1; j <= variable_count; j++)
+                    out[k->id][j] |= in[to->id][j];
+                // OUT[B] = ∪ S是B的一个后继 IN[S];
+            }
+#ifdef DEBUG
+            for (int j = 1; j <= variable_count; j++)
+                printf("%d ", out[k->id][j]);
+            printf("\n");
+#endif
+
+            // 更新IN
+            bool *new_in = (bool *)malloc(sizeof(bool) * n);
+            for (int j = 1; j <= n; j++)
+                new_in[j] = out[k->id][j];
+                          printf("free new_in\n");
+            free(new_in);
+            printf("free new_in\n");
+            continue;
+            for (InterCode *i = k->tail; i != k->head->pre; i = i->pre)
+            {
+                int def = 0;
+                int use1 = 0, use2 = 0;
+                if (i->kind == ARG_in || i->kind == WRITE_in || i->kind == RETURN_in)
+                {
+                    use1 = i->singop.op->offset;
+                }
+                else if (i->kind == READ_in)
+                {
+                    def = i->singop.op->offset;
+                }
+                else if (i->kind == CALL_in)
+                {
+                    if (i->binop.op1->type == Normal)
+                        def = i->binop.op1->offset;
+                }
+                else if (i->kind == IF_in)
+                {
+                    Operand *x = i->recop.op1;
+                    Operand *y = i->recop.op2;
+                    use1 = x->offset;
+                    use2 = y->offset;
+                }
+                else if (i->kind == ASSIGN_in)
+                {
+                    Operand *x = i->binop.op1;
+                    Operand *y = i->binop.op2;
+                    if (x->type == Normal)
+                        def = x->offset;
+                    use1 = y->offset;
+                }
+                else if (i->para_num == 3)
+                {
+                    Operand *x = i->triop.result;
+                    Operand *y = i->triop.op1;
+                    Operand *z = i->triop.op2;
+                    if (x->type == Normal)
+                        def = x->offset;
+                    use1 = y->offset;
+                    use2 = z->offset;
+                }
+                else
+                    continue;
+
+                new_in[def] = false;
+                new_in[use1] = true;
+                new_in[use2] = true;
+#ifdef DEBUG
+                print_intercode(i);
+                printf("def %d  use1 %d  use2 %d\n", def, use1, use2);
+#endif
+            }
+#ifdef DEBUG
+            printf("IN: ");
+            for (int j = 1; j <= n; j++)
+                printf("%d ", new_in[j]);
+            printf("\n");
+
+            for (Operand *i = operand_list; i; i = i->next)
+            {
+                if (new_in[i->offset])
+                    print_operand(i), printf(" ");
+            }
+            printf("\n");
+#endif
+            for (int j = 1; j <= n; j++)
+            {
+                if (new_in[j] != in[k->id][j])
+                    if_changed = true;
+                in[k->id][j] = new_in[j];
+            }
+            // free(new_in);
+        }
+    }
+  //  live_leave();
 }

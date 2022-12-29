@@ -1,5 +1,4 @@
 #include "optimize.h"
-
 FILE *p;
 
 int main(int argc, char **argv)
@@ -10,15 +9,14 @@ int main(int argc, char **argv)
     if (argc > 1)
         p = fopen(argv[1], "r");
 
-    block_init();
     optimize_read();
-    build_block();
-    //  print_block();
-    build_graph();
-    //  print_graph();
-    common_expression();
+  //  clear();
+  //  clear1();
+  //  clear2();
 
-   // printf("print all \n");
+    deal();
+
+    // printf("print all \n");
     print_all_intercode();
     return 0;
 }

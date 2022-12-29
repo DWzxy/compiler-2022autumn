@@ -1,18 +1,20 @@
 #include "intermediate.h"
 #include "semantic.h"
 
-//#define DEBUG
+// #define DEBUG
 #define SIZE 4
 
 InterCode *intercode_head = NULL;
 InterCode *intercode_tail = NULL;
-int label_count = 1; //标号数目
-int tmp_count = 1;   //临时变量数目
-int para_count = 1;  //函数参数数目
+int label_count = 1; // 标号数目
+int tmp_count = 1;   // 临时变量数目
+int para_count = 1;  // 函数参数数目
 
 Operand *zero;
 Operand *one;
 Operand *size;
+
+int cond_num = 0;
 
 void trans_init()
 {
@@ -31,7 +33,7 @@ void insert_intercode(InterCode *k)
         k->pre = intercode_tail;
         intercode_tail = k;
     }
-    //  print_intercode(k);
+    //   print_intercode(k);
 }
 
 void remove_intercode(InterCode *k)
@@ -45,7 +47,7 @@ void remove_intercode(InterCode *k)
         k->pre->next = k->next;
         k->next->pre = k->pre;
     }
-    //虽然从链表里去掉了k，但k仍在，可以访问它原来的pre和next
+    // 虽然从链表里去掉了k，但k仍在，可以访问它原来的pre和next
 }
 
 Operand *new_operand(enum Operand_kind kind, int type, char *name)
@@ -55,6 +57,8 @@ Operand *new_operand(enum Operand_kind kind, int type, char *name)
     p->kind = kind;
     p->type = type;
     p->variable = NULL;
+    p->next = NULL;
+    p->offset = -1;
     if (kind == CONSTANT_operand)
     {
     }
@@ -216,26 +220,13 @@ void print_intercode(InterCode *k)
         printf("DEC ");
         print_operand(k->binop.op1);
         printf(" %d", k->binop.op2->value);
-        //只能单独打印，因为DEC中的常数前不加#
+        // 只能单独打印，因为DEC中的常数前不加#
     }
-    else if (kind == CALL_in) //单独考虑read和write
+    else if (kind == CALL_in)
     {
-        if (strcmp(k->binop.op2->name, "read") == 0)
-        {
-            printf("READ ");
-            print_operand(k->binop.op1);
-        }
-        else if (strcmp(k->binop.op2->name, "write") == 0)
-        {
-            printf("WRITE ");
-            print_operand(k->binop.op1);
-        }
-        else
-        {
-            print_operand(k->binop.op1);
-            printf(" := CALL ");
-            print_operand(k->binop.op2);
-        }
+        print_operand(k->binop.op1);
+        printf(" := CALL ");
+        print_operand(k->binop.op2);
     }
     // triop
     else if (kind == PLUS_in)
@@ -319,7 +310,7 @@ void trans_ExtDef(Node *k)
     if (strcmp(k->child->next->name, "FunDec") == 0)
     {
         stack_push();
-        stack_change(k->child->next->next->symbol); //将符号表填回
+        stack_change(k->child->next->next->symbol); // 将符号表填回
         trans_FunDec(k->child->next);
         if (strcmp(k->child->next->next->name, "CompSt") == 0)
             // CompSt = LC DefList StmtList RC 函数具体定义，先声明后使用
@@ -337,35 +328,40 @@ void trans_FunDec(Node *k)
 {
     // FunDec = ID LP VarList RP| ID LP RP //函数及参数列表
     Operand *func = new_function(k->child->val.char_val);
+    func->value = 0;
     new_intercode(FUNCTION_in, NULL, func, NULL, NULL);
+
     if (k->child_num == 4)
-    { //有参数
-        trans_VarList(k->child->next->next);
+    { // 有参数
+        func->value = trans_VarList(k->child->next->next);
     }
+    //  printf("para_num = %d\n",func->value);
     return;
 }
 
-void trans_VarList(Node *k)
+int trans_VarList(Node *k)
 {
+    int num = 0;
     // ParamDec COMMA VarList| ParamDec
     for (Node *i = k->child;; i = i->next->next->child)
     {
-        //每一个参数定义
-        // Specifier VarDec
+        // 每一个参数定义
+        //  Specifier VarDec
+        num++; // 记录参数个数
         ListNode *p = trans_VarDec(i->child->next);
-        p->para_no = -para_count++; //记录这是第几个参数
-        //负数代表是函数参数，自己就是地址
+        p->para_no = -para_count++; // 记录这是第几个参数
+        // 负数代表是函数参数，自己就是地址
         Operand *param = new_para();
         param->value = p->para_no;
         new_intercode(PARAM_in, NULL, param, NULL, NULL);
         if (i->next == NULL)
             break;
     }
-    return;
+    return num;
 }
 
 void trans_DefList(Node *k)
-{ //函数与结构体内部定义，返回参数列表
+{ // 函数与结构体内部定义，返回参数列表
     // DefList = Def DefList | empty
     // Def = Specifier DecList SEMI//变量声明
     if (k->child_num == 1 && k->child == NULL)
@@ -376,7 +372,7 @@ void trans_DefList(Node *k)
             break;
         // DecList = Dec | Dec COMMA DecList
         for (Node *j = i->child->child->next->child;;
-             j = j->next->next->child) //每个变量的名称
+             j = j->next->next->child) // 每个变量的名称
         {
             trans_Dec(j);
             if (j->next == NULL)
@@ -387,7 +383,7 @@ void trans_DefList(Node *k)
 }
 
 void trans_StmtList(Node *k)
-{ //函数内部使用
+{ // 函数内部使用
     // StmtList = Stmt StmtList | empty
     if (k->child_num == 1 && k->child == NULL)
         return;
@@ -422,7 +418,7 @@ void trans_Dec(Node *k)
 {
     // Dec = VarDec | VarDec ASSIGNOP Exp
     ListNode *p = trans_VarDec(k->child);
-    p->para_no = para_count++; //记录这是第几个参数
+    p->para_no = para_count++; // 记录这是第几个参数
     Operand *tmp = new_para();
     tmp->value = p->para_no;
     if (p->type->kind == ARRAY || p->type->kind == STRUCTURE)
@@ -432,7 +428,7 @@ void trans_Dec(Node *k)
     }
     if (k->child->next && strcmp(k->child->next->name, "ASSIGNOP") == 0)
     {
-        Operand *tmp2 = trans_exp(k->child->next->next);
+        Operand *tmp2 = trans_exp(k->child->next->next, true);
         new_intercode(ASSIGN_in, NULL, tmp, tmp2, NULL);
     }
 }
@@ -443,7 +439,7 @@ ListNode *trans_VarDec(Node *k)
     if (strcmp(k->child->name, "ID") == 0)
     { // ID头
         ListNode *now = search_all_listnode(define, k->child->val.char_val, false);
-        return now; //数组
+        return now; // 数组
     }
     else
         return trans_VarDec(k->child);
@@ -500,12 +496,12 @@ void trans_stmt(Node *k)
     else if (k->child_num == 3)
     {
         // RETURN Exp SEMI
-        Operand *exp = trans_exp(k->child->next);
+        Operand *exp = trans_exp(k->child->next, true);
         new_intercode(RETURN_in, NULL, exp, NULL, NULL);
     }
     else if (k->child_num == 2)
         // Exp SEMI
-        trans_exp(k->child);
+        trans_exp(k->child, false);
     else
     {
         stack_push();
@@ -515,8 +511,8 @@ void trans_stmt(Node *k)
     }
 }
 
-Operand *trans_exp(Node *k) // if_right表示是否是右值
-{                           //返回的是一个操作符（临时变量）
+Operand *trans_exp(Node *k, bool flag) // if_right表示是否是右值
+{                                      // 返回的是一个操作符（临时变量）
     // Exp = Exp ASSIGNOP Exp| Exp AND Exp | Exp OR Exp
     //| Exp RELOP Exp | Exp PLUS Exp | Exp MINUS Exp
     //| Exp STAR Exp | Exp DIV Exp | LP Exp RP | MINUS Exp
@@ -534,7 +530,7 @@ Operand *trans_exp(Node *k) // if_right表示是否是右值
         }
         else if (strcmp(k->child->name, "FLOAT") == 0)
         {
-            //好像这次没有浮点数
+            // 好像这次没有浮点数
             now = zero;
 #ifdef DEBUG
             printf("[ERROR: FLOAT %f]\n", k->child->val.float_val);
@@ -542,7 +538,7 @@ Operand *trans_exp(Node *k) // if_right表示是否是右值
         }
         else if (strcmp(k->child->name, "ID") == 0)
         {
-            //不能直接返回名称，因为函数参数名已重置
+            // 不能直接返回名称，因为函数参数名已重置
             ListNode *tmp = search_all_listnode(define,
                                                 k->child->val.char_val, false);
 #ifdef DEBUG
@@ -550,9 +546,9 @@ Operand *trans_exp(Node *k) // if_right表示是否是右值
 #endif
             now = new_para();
             now->value = tmp->para_no;
-            now->variable = tmp->type; //附加变量
+            now->variable = tmp->type; // 附加变量
             if (now->variable->kind == BASIC || tmp->para_no <= 0)
-                now->type = Normal; //获得的是变量的地址
+                now->type = Normal; // 获得的是变量的地址
             else
                 now->type = Address;
         }
@@ -576,12 +572,12 @@ Operand *trans_exp(Node *k) // if_right表示是否是右值
         {
             if (strcmp(k->child->next->child->name, "INT") == 0)
             {
-                //特殊情况：MINUS INT 负数
+                // 特殊情况：MINUS INT 负数
                 now = new_constant(-k->child->next->child->val.int_val);
             }
             else
             {
-                Operand *exp = trans_exp(k->child->next);
+                Operand *exp = trans_exp(k->child->next, flag);
                 // x=-y -> x=0-y
                 now = new_tmp();
                 new_intercode(MINUS_in, now, zero, exp, NULL);
@@ -596,8 +592,9 @@ Operand *trans_exp(Node *k) // if_right表示是否是右值
         Operand *tmp1 = NULL, *tmp2 = NULL, *tmp3 = NULL;
         if (strcmp(k->child->next->name, "ASSIGNOP") == 0)
         { // Exp ASSIGNOP Exp
-            tmp1 = trans_exp(k->child);
-            tmp3 = trans_exp(k->child->next->next);
+            tmp1 = trans_exp(k->child, false);
+            tmp3 = trans_exp(k->child->next->next, true);
+            // 只有赋值语句要考虑左右值
             now = tmp1;
             new_intercode(ASSIGN_in, NULL, now, tmp3, NULL);
         }
@@ -605,9 +602,9 @@ Operand *trans_exp(Node *k) // if_right表示是否是右值
                  strcmp(k->child->next->name, "MINUS") == 0 ||
                  strcmp(k->child->next->name, "STAR") == 0 ||
                  strcmp(k->child->next->name, "DIV") == 0)
-        { //四则运算
-            tmp1 = trans_exp(k->child);
-            tmp3 = trans_exp(k->child->next->next);
+        { // 四则运算
+            tmp1 = trans_exp(k->child, flag);
+            tmp3 = trans_exp(k->child->next->next, flag);
             now = new_tmp();
             if (strcmp(k->child->next->name, "PLUS") == 0)
                 new_intercode(PLUS_in, now, tmp1, tmp3, NULL);
@@ -626,23 +623,23 @@ Operand *trans_exp(Node *k) // if_right表示是否是右值
         }
         else if (strcmp(k->child->name, "LP") == 0)
         { // LP Exp RP
-            tmp2 = trans_exp(k->child->next);
+            tmp2 = trans_exp(k->child->next, flag);
             now = tmp2;
         }
         else if (strcmp(k->child->next->name, "DOT") == 0)
-        {                                        // Exp DOT ID
-            Operand *stru = trans_exp(k->child); //获取前面的结构体
+        {                                              // Exp DOT ID
+            Operand *stru = trans_exp(k->child, flag); // 获取前面的结构体
             Operand *tmp = new_tmp();
-            new_intercode(ASSIGN_in, NULL, tmp, stru, NULL); //获取结构体的地址
-            char *name = k->child->next->next->val.char_val; //成员名字
+            new_intercode(ASSIGN_in, NULL, tmp, stru, NULL); // 获取结构体的地址
+            char *name = k->child->next->next->val.char_val; // 成员名字
             int size = 0;
             for (ListNode *i = stru->variable->structure; i; i = i->next)
             {
-                //遍历所有成员
+                // 遍历所有成员
                 if (strcmp(i->name, name) == 0)
                 {
                     new_intercode(PLUS_in, tmp, tmp, new_constant(size), NULL);
-                    tmp->variable = i->type; //要附加变量！
+                    tmp->variable = i->type; // 要附加变量！
                     break;
                 }
                 size += size_of(i->type);
@@ -651,7 +648,15 @@ Operand *trans_exp(Node *k) // if_right表示是否是右值
             if (now->variable->kind == ARRAY || now->variable->kind == STRUCTURE)
                 now->type = Normal;
             else
+            {
                 now->type = Star;
+                if (flag)
+                { // 是右值就需要取值
+                    tmp = new_tmp();
+                    new_intercode(ASSIGN_in, NULL, tmp, now, NULL);
+                    now = tmp;
+                }
+            }
         }
         else
         {
@@ -674,8 +679,13 @@ Operand *trans_exp(Node *k) // if_right表示是否是右值
             Operand *func = new_function(k->child->val.char_val);
             if (strcmp(func->name, "write") == 0)
             {
-                Operand *arg = trans_exp(k->child->next->next->child);
-                new_intercode(CALL_in, NULL, arg, func, NULL);
+                Operand *arg = trans_exp(k->child->next->next->child, true);
+                new_intercode(WRITE_in, NULL, arg, NULL, NULL);
+            }
+            else if (strcmp(func->name, "read") == 0)
+            {
+                Operand *arg = trans_exp(k->child->next->next->child, flag);
+                new_intercode(READ_in, NULL, arg, NULL, NULL);
             }
             else
             {
@@ -687,29 +697,37 @@ Operand *trans_exp(Node *k) // if_right表示是否是右值
         else if (strcmp(k->child->next->name, "LB") == 0)
         {
             // Exp LB Exp RB
-            Operand *Array = trans_exp(k->child);
-            //获取第一个exp对应的数组
-            Operand *para = trans_exp(k->child->next->next);
-            //获取数组参数
-            Operand *tmp = new_tmp(); //记录乘积
+            Operand *Array = trans_exp(k->child, flag);
+            // 获取第一个exp对应的数组
+            Operand *para = trans_exp(k->child->next->next, flag);
+            // 获取数组参数
+            Operand *tmp = new_tmp(); // 记录乘积
             now = new_tmp();
             now->variable = Array->variable->array.elem;
-            //处理这一节数组
+            // 处理这一节数组
             new_intercode(STAR_in, tmp, para,
                           new_constant(size_of(now->variable)),
-                          NULL); //这一个维度的宽度
+                          NULL); // 这一个维度的宽度
             new_intercode(PLUS_in, now, Array, tmp, NULL);
-            //前面的地址加上这一维度的空间
+            // 前面的地址加上这一维度的空间
             if (now->variable->array.size == 0)
             {
-                //最后一个维度，可能也是第一个
+                // 最后一个维度，可能也是第一个
                 Operand *addr = copy_operand(now);
-                now = addr; //最后再变回取值
+                now = addr; // 最后再变回取值
                 if (now->variable->kind == ARRAY || now->variable->kind == STRUCTURE)
                     now->type = Normal;
-                //注意如果成员仍是数组或结构体，要继续计算地址，因此不取值
+                // 注意如果成员仍是数组或结构体，要继续计算地址，因此不取值
                 else
+                {
                     now->type = Star;
+                    if (flag)
+                    { // 是右值就需要取值
+                        tmp = new_tmp();
+                        new_intercode(ASSIGN_in, NULL, tmp, now, NULL);
+                        now = tmp;
+                    }
+                }
             }
         }
     }
@@ -721,10 +739,10 @@ Operand *trans_arg(Node *k)
     // Args = Exp COMMA Args | Exp
     if (k->child_num > 1)
         trans_arg(k->child->next->next);
-    Operand *args = trans_exp(k->child);
-    Operand *tmp = copy_operand(args);
-    tmp->type = Normal; //传入的都是名字
-    new_intercode(ARG_in, NULL, tmp, NULL, NULL);
+    Operand *args = trans_exp(k->child, true);
+    //   Operand *tmp = copy_operand(args);
+    //  tmp->type = Normal; // 传入的都是名字
+    new_intercode(ARG_in, NULL, args, NULL, NULL);
     return args;
 }
 
@@ -737,8 +755,8 @@ void trans_cond(Node *k, Operand *true_label, Operand *false_label)
 #ifdef DEBUG
         printf("[RELOP %s]\n", relop->name);
 #endif
-        Operand *exp1 = trans_exp(k->child);
-        Operand *exp2 = trans_exp(k->child->next->next);
+        Operand *exp1 = trans_exp(k->child, true);
+        Operand *exp2 = trans_exp(k->child->next->next, true);
         new_intercode(IF_in, relop, exp1, exp2, true_label);
         new_intercode(GOTO_in, NULL, false_label, NULL, NULL);
     }
@@ -760,7 +778,7 @@ void trans_cond(Node *k, Operand *true_label, Operand *false_label)
         trans_cond(k->child->next, false_label, true_label);
     else
     {
-        Operand *exp = trans_exp(k);
+        Operand *exp = trans_exp(k, true);
         Operand *relop = new_function("!=");
         new_intercode(IF_in, relop, exp, zero, true_label);
         new_intercode(GOTO_in, NULL, false_label, NULL, NULL);
@@ -770,7 +788,7 @@ void trans_cond(Node *k, Operand *true_label, Operand *false_label)
 void trans_read(Node *k)
 {
     if (strcmp(k->name, "Program") == 0)
-        stack_change(k->symbol); //添加全局变量
+        stack_change(k->symbol); // 添加全局变量
     if (k == NULL)
         return;
     //    printf("now read %s\n", k->name);
@@ -804,7 +822,7 @@ char *para_name(int k)
 
 void reverse_relop(char *name)
 {
-    //判断符的翻转
+    // 判断符的翻转
     if (strcmp(name, "!=") == 0)
         strcpy(name, "==");
     else if (strcmp(name, "==") == 0)
@@ -817,6 +835,20 @@ void reverse_relop(char *name)
         strcpy(name, "<=");
     else if (strcmp(name, ">=") == 0)
         strcpy(name, "<");
+}
+
+bool operand_equal(Operand *x, Operand *y)
+{
+    if (x == NULL || y == NULL)
+        return false;
+    if (x->kind != y->kind)
+        return false;
+    if (x->type != y->type)
+        return false;
+    if (x->kind == CONSTANT_operand)
+        return x->value == y->value;
+    else if (x->kind == FUNCTION_operand)
+        return strcmp(x->name, y->name) == 0;
 }
 
 void clear()
@@ -832,41 +864,46 @@ void clear()
                 else
                     break;
             }
-        } //在return和(label或fuction)之间的语句不可能被访问
+        } // 在return和(label或fuction)之间的语句不可能被访问
 
-        if (p->next != NULL && p->next->kind == LABEL_in)
+        else if (p->next != NULL && p->next->kind == LABEL_in)
         {
             if (p->kind == GOTO_in)
             {
-                if (p->singop.op->value == p->next->singop.op->value)
+                if (operand_equal(p->singop.op, p->next->singop.op))
                     remove_intercode(p);
             }
             if (p->kind == IF_in)
             {
-                if (p->recop.op3->value == p->next->singop.op->value)
+                if (operand_equal(p->recop.op3,
+                                  p->next->singop.op))
                     remove_intercode(p);
             }
-        } //利用指令自然流动去掉与对应LABEL相邻的GOTO
+        } // 利用指令自然流动去掉与对应LABEL相邻的GOTO
 
-        if (p->next != NULL && p->next->next != NULL &&
-            p->next->kind == GOTO_in && p->next->next->kind == LABEL_in)
+        else if (p->kind == IF_in && p->next != NULL && p->next->next != NULL &&
+                 p->next->kind == GOTO_in && p->next->next->kind == LABEL_in)
         {
-            if (p->kind == IF_in)
+            if (operand_equal(p->recop.op3,
+                              p->next->next->singop.op))
             {
-                if (p->recop.op3->value == p->next->next->singop.op->value)
-                {
-                    reverse_relop(p->recop.relop->name);
-                    p->recop.op3->value = p->next->singop.op->value;
-                    remove_intercode(p->next);
-                    remove_intercode(p->next);
-                }
+                reverse_relop(p->recop.relop->name);
+                p->recop.op3 = p->next->singop.op;
+                remove_intercode(p->next->next);
+                remove_intercode(p->next);
             }
         }
         // if x relop y goto label1
         //  goto label2
         //  label1  一类的语句
-        //改为if x !relop y goto label2
+        // 改为if x !relop y goto label2
+    }
+}
 
+void clear1()
+{
+    for (InterCode *p = intercode_head; p; p = p->next)
+    {
         if (p->para_num == 3 && p->triop.op1->kind == CONSTANT_operand &&
             p->triop.op2->kind == CONSTANT_operand)
         {
@@ -878,18 +915,17 @@ void clear()
             else if (p->kind == STAR_in)
                 tmp3 = tmp1 * tmp2;
             else if (p->kind == DIV_in)
-                tmp3 = tmp1 / tmp2; //计算常数结果
-            *(p->triop.result) = *(new_constant(tmp3));
-            //这一步直接改变了该操作数指针指向的操作数的值
-            //因此所有引用该操作数的指令都会同时改变
-            remove_intercode(p);
-        } //常数之间的运算可以直接赋值
-
-        /*       if (p->kind == ASSIGN_in && p->binop.op1->kind == TMP_operand &&
-                   p->binop.op1->type == Normal)
-               {
-                   *(p->binop.op1) = *(p->binop.op2);
-               } //普通变量赋值可以去掉*/
+                tmp3 = tmp1 / tmp2; // 计算常数结果
+            // 重建一个常数赋值
+            p->kind = ASSIGN_in;
+            p->para_num = 2;
+            p->binop.op1 = p->triop.result;
+            p->binop.op2 = new_constant(tmp3);
+            //           *(p->triop.result) = *(new_constant(tmp3));
+            // 这一步直接改变了该操作数指针指向的操作数的值
+            // 因此所有引用该操作数的指令都会同时改变
+            //           remove_intercode(p);
+        } // 常数之间的运算可以直接赋值
     }
 }
 
@@ -902,43 +938,43 @@ void clear2()
             int tmp = 0;
             for (InterCode *i = intercode_head; i; i = i->next)
             {
-                //重新遍历，看该label被几个goto饮用
+                // 重新遍历，看该label被几个goto饮用
                 if (i->kind == GOTO_in)
                 {
-                    if (i->singop.op->value == p->singop.op->value)
+                    if (operand_equal(i->singop.op, p->singop.op))
                         tmp++;
                 }
                 if (i->kind == IF_in)
                 {
-                    if (i->recop.op3->value == p->singop.op->value)
+                    if (operand_equal(i->recop.op3, p->singop.op))
                         tmp++;
                 }
             }
             if (tmp == 0)
                 remove_intercode(p);
-            //如果没有goto引用它，就可以将其去掉
-        } //清除无用的label
+            // 如果没有goto引用它，就可以将其去掉
+        } // 清除无用的label
         if (p->para_num == 3)
         {
             if (p->kind == PLUS_in)
             {
-                if ((p->triop.result == p->triop.op2 &&
+                if ((operand_equal(p->triop.result, p->triop.op2) &&
                      p->triop.op1->kind == CONSTANT_operand &&
                      p->triop.op1->value == 0) ||
-                    (p->triop.result == p->triop.op1 &&
+                    (operand_equal(p->triop.result, p->triop.op1) &&
                      p->triop.op2->kind == CONSTANT_operand &&
                      p->triop.op2->value == 0))
-                    remove_intercode(p); //加0等于自己
+                    remove_intercode(p); // 加0等于自己
             }
             else if (p->kind == STAR_in)
             {
-                if ((p->triop.result == p->triop.op2 &&
+                if ((operand_equal(p->triop.result, p->triop.op2) &&
                      p->triop.op1->kind == CONSTANT_operand &&
                      p->triop.op1->value == 1) ||
-                    (p->triop.result == p->triop.op1 &&
+                    (operand_equal(p->triop.result, p->triop.op1) &&
                      p->triop.op2->kind == CONSTANT_operand &&
                      p->triop.op2->value == 1))
-                    remove_intercode(p); //乘1等于自己
+                    remove_intercode(p); // 乘1等于自己
             }
         }
     }
