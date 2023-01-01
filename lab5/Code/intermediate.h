@@ -6,6 +6,8 @@ struct ListNode_;
 typedef struct Type_ Type;
 typedef struct ListNode_ ListNode;
 
+struct Block_;
+
 enum Operand_kind
 {
     CONSTANT_operand,

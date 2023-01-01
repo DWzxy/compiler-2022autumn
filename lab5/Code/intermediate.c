@@ -357,7 +357,7 @@ void clear()
 {
     for (InterCode *p = intercode_head; p; p = p->next)
     {
-        if (p->kind == RETURN_in)
+     /*   if (p->kind == RETURN_in)
         {
             for (InterCode *tmp = p->next; tmp; tmp = tmp->next)
             {
@@ -383,7 +383,7 @@ void clear()
             }
         } // 利用指令自然流动去掉与对应LABEL相邻的GOTO
 
-        else if (p->kind == IF_in && p->next != NULL && p->next->next != NULL &&
+        else*/ if (p->kind == IF_in && p->next != NULL && p->next->next != NULL &&
                  p->next->kind == GOTO_in && p->next->next->kind == LABEL_in)
         {
             if (operand_equal(p->recop.op3,

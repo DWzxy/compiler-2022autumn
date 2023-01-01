@@ -1,6 +1,6 @@
 #include "optimize.h"
 
- //#define DEBUG
+// #define DEBUG
 
 extern FILE *p;
 extern InterCode *intercode_head;
@@ -32,8 +32,13 @@ void deal()
         live_init();
         live_variable();
         common_expression();
-             dead_code();
+        live_leave();
 
+          clear1();
+
+        live_init();
+        live_variable();
+        dead_code();
         live_leave();
     }
 }
@@ -362,7 +367,7 @@ Operand *add_variable(Operand *now)
     {
         if (operand_equal_minus(i, now))
         {
-            now->offset=i->offset;
+            now->offset = i->offset;
             return now;
         }
     }
@@ -500,46 +505,54 @@ void common_expression()
                 DAG_pointer *y = find_DAG_pointer(
                     &dag_pointer_head, k->binop.op2);
                 k->binop.op2 = y->node->pointer->variable;
-
-                // 找替代
                 bool flag = false;
-                for (DAG_pointer *now = dag_pointer_head; now; now = now->next)
-                {
-                    if (strcmp(now->node->op, "=") != 0)
-                        continue;
-                    if (now->node->lc == y->node)
-                    {
-#ifdef DEBUG
-                        printf("find replace ");
-                        print_operand(now->node->pointer->variable);
-                        printf(" = ");
-                        print_operand(now->node->lc->pointer->variable);
-                        printf("\n");
 
-                        print_operand(x->variable);
-                        printf(" -> ");
-                        print_operand(now->node->pointer->variable);
-                        printf("\n");
-#endif
-                        flag = true;
-                        if (x->node->pointer == x)
-                        {
-                            check_dead_code(x->node, i);
-                            x->node->pointer = NULL;
-                        }
-                        x->node = now->node;
-                        if (out[i->id][x->variable->offset] == false)
-                            remove_intercode(k);
-                        break;
-                    }
+                if (k->binop.op2->kind == CONSTANT_operand)
+                {
+                    flag = true;
+                    if (out[i->id][x->variable->offset] == false)
+                        delete_intercode(k, i);
+                    x->node = y->node; // 常数替换
                 }
+                // 找替代
+                else
+                    for (DAG_pointer *now = dag_pointer_head; now; now = now->next)
+                    {
+                        if (strcmp(now->node->op, "=") != 0)
+                            continue;
+                        if (now->node->lc == y->node)
+                        {
+#ifdef DEBUG
+                            printf("find replace ");
+                            print_operand(now->node->pointer->variable);
+                            printf(" = ");
+                            print_operand(now->node->lc->pointer->variable);
+                            printf("\n");
+
+                            print_operand(x->variable);
+                            printf(" -> ");
+                            print_operand(now->node->pointer->variable);
+                            printf("\n");
+#endif
+                            flag = true;
+                            if (x->node->pointer == x)
+                            {
+                   //             check_dead_code(x->node, i);
+                                x->node->pointer = NULL;
+                            }
+                            x->node = now->node;
+                            if (out[i->id][x->variable->offset] == false)
+                                delete_intercode(k, i);
+                            break;
+                        }
+                    }
                 if (flag == false)
                 {
                     DAG_node *now = new_dag_node(
                         "=", y->node, NULL, k, x);
                     if (x->node->pointer == x)
                     {
-                        check_dead_code(x->node, i);
+             //           check_dead_code(x->node, i);
                         x->node->pointer = NULL;
                     }
                     x->node = now;
@@ -599,12 +612,12 @@ void common_expression()
                         flag = true;
                         if (x->node->pointer == x)
                         {
-                            check_dead_code(x->node, i);
+             //               check_dead_code(x->node, i);
                             x->node->pointer = NULL;
                         }
                         x->node = now->node;
                         if (out[i->id][x->variable->offset] == false)
-                            remove_intercode(k);
+                            delete_intercode(k, i);
                         break;
                     }
                 }
@@ -614,7 +627,7 @@ void common_expression()
                         "", y->node, z->node, k, x);
                     if (x->node->pointer == x)
                     {
-                        check_dead_code(x->node, i);
+               //         check_dead_code(x->node, i);
                         x->node->pointer = NULL;
                     }
                     x->node = now;
@@ -633,10 +646,23 @@ void common_expression()
             printf("    trans over: ");
             print_intercode(k);
 #endif
-            if (k == i->tail)
+            if (k == i->tail || k == i->tail->next)
                 break;
         }
     }
+}
+
+bool delete_intercode(InterCode *k, Block *i)
+{
+    remove_intercode(k);
+    if (k == i->tail)
+    {
+        i->tail = k->pre;
+        return false;
+    }
+    else if (k == i->head)
+        i->head = k->next;
+    return true;
 }
 
 DAG_pointer *find_DAG_pointer(DAG_pointer **head, Operand *x)
@@ -644,6 +670,26 @@ DAG_pointer *find_DAG_pointer(DAG_pointer **head, Operand *x)
     for (DAG_pointer *i = *head; i; i = i->next)
     {
         if (operand_equal(i->variable, x))
+            return i;
+    }
+#ifdef DEBUG
+    printf("create new %s %d\n", x->name, x->value);
+#endif
+
+    DAG_pointer *now = (DAG_pointer *)malloc(sizeof(DAG_pointer));
+     now->variable = x;   
+    DAG_node *tmp = new_dag_node("", NULL, NULL, NULL, now);
+    now->node = tmp;
+    now->next = *head;
+    *head = now;
+    return now;
+}
+
+DAG_pointer *find_DAG_pointer_minus(DAG_pointer **head, Operand *x)
+{
+    for (DAG_pointer *i = *head; i; i = i->next)
+    {
+        if (i->variable->offset == x->offset)
             return i;
     }
 #ifdef DEBUG
@@ -668,6 +714,7 @@ DAG_node *new_dag_node(char *name, DAG_node *lc,
     tmp->parent = NULL;
     tmp->pointer = x;
     tmp->intercode = k;
+    tmp->variable=x->variable;
     strcpy(tmp->op, name);
     if (lc != NULL)
         lc->parent = tmp;
@@ -684,23 +731,16 @@ void check_dead_code(DAG_node *x, Block *block)
         return;
     if (x->intercode == NULL)
         return;
-    Operand *op = x->pointer->variable;
+    Operand *op = x->variable;
     // 检查是否活跃
-    for (DAG_pointer *i = dag_pointer_head; i; i = i->next)
-    {
-        if (i->node == x || operand_equal_minus(
-                                i->node->pointer->variable, op))
-        {
-            if (out[block->id][i->variable->offset] == true)
-                return;
-        }
-    }
+        if (out[block->id][op->offset] == true)
+            return;
 
 #ifdef DEBUG
     printf("remove:\n");
     print_intercode(x->intercode);
 #endif
-    remove_intercode(x->intercode);
+    delete_intercode(x->intercode,block);
     x->intercode = NULL;
 }
 
@@ -716,27 +756,27 @@ void dead_code()
             { // 只替换
                 if (k->kind == ARG_in)
                 {
-                    DAG_pointer *x = find_DAG_pointer(
+                    DAG_pointer *x = find_DAG_pointer_minus(
                         &dag_pointer_head, k->singop.op);
                     x->node->intercode = NULL;
                 }
                 else if (k->kind == RETURN_in)
                 {
-                    DAG_pointer *x = find_DAG_pointer(
+                    DAG_pointer *x = find_DAG_pointer_minus(
                         &dag_pointer_head, k->singop.op);
                     x->node->intercode = NULL;
                 }
                 else if (k->kind == WRITE_in)
                 {
-                    DAG_pointer *x = find_DAG_pointer(
+                    DAG_pointer *x = find_DAG_pointer_minus(
                         &dag_pointer_head, k->singop.op);
                     x->node->intercode = NULL;
                 }
                 else if (k->kind == IF_in)
                 {
-                    DAG_pointer *x = find_DAG_pointer(
+                    DAG_pointer *x = find_DAG_pointer_minus(
                         &dag_pointer_head, k->recop.op1);
-                    DAG_pointer *y = find_DAG_pointer(
+                    DAG_pointer *y = find_DAG_pointer_minus(
                         &dag_pointer_head, k->recop.op2);
                     x->node->intercode = NULL;
                     y->node->intercode = NULL;
@@ -747,18 +787,13 @@ void dead_code()
             }
             if (k->kind == ASSIGN_in)
             {
-                DAG_pointer *x = find_DAG_pointer(
+                DAG_pointer *x = find_DAG_pointer_minus(
                     &dag_pointer_head, k->binop.op1);
-                DAG_pointer *y = find_DAG_pointer(
+                DAG_pointer *y = find_DAG_pointer_minus(
                     &dag_pointer_head, k->binop.op2);
 
                 DAG_node *now = new_dag_node(
                     "=", y->node, NULL, k, x);
-                if (x->node->pointer == x)
-                {
-                    check_dead_code(x->node, i);
-                    x->node->pointer = NULL;
-                }
                 x->node = now;
 #ifdef DEBUG
                 print_operand(x->variable);
@@ -769,20 +804,15 @@ void dead_code()
             }
             else
             {
-                DAG_pointer *x = find_DAG_pointer(
+                DAG_pointer *x = find_DAG_pointer_minus(
                     &dag_pointer_head, k->triop.result);
-                DAG_pointer *y = find_DAG_pointer(
+                DAG_pointer *y = find_DAG_pointer_minus(
                     &dag_pointer_head, k->triop.op1);
-                DAG_pointer *z = find_DAG_pointer(
+                DAG_pointer *z = find_DAG_pointer_minus(
                     &dag_pointer_head, k->triop.op2);
 
                 DAG_node *now = new_dag_node(
                     "", y->node, z->node, k, x);
-                if (x->node->pointer == x)
-                {
-                    check_dead_code(x->node, i);
-                    x->node->pointer = NULL;
-                }
                 x->node = now;
 
                 if (k->kind == PLUS_in)
@@ -804,11 +834,7 @@ void dead_code()
         for (DAG_pointer *k = dag_pointer_head; k; k = k->next)
         {
             DAG_node *now = k->node;
-            if (now->pointer != k)
-                continue;
-            if (k->variable->type != Normal)
-                continue;
-   //         check_dead_code(now, i);
+                    check_dead_code(now, i);
         }
     }
 }

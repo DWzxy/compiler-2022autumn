@@ -47,6 +47,7 @@ typedef struct DAG_node_
     struct DAG_node_ *rc;
     struct DAG_node_ *parent;
     struct DAG_node_ *next;
+    Operand *variable;
     struct DAG_pointer_ *pointer; // 互指
     InterCode *intercode;
 } DAG_node;
@@ -59,7 +60,9 @@ typedef struct DAG_pointer_
 } DAG_pointer;
 
 void common_expression();
+bool delete_intercode(InterCode *k, Block *i);
 DAG_pointer *find_DAG_pointer(DAG_pointer **head, Operand *x);
+DAG_pointer *find_DAG_pointer_minus(DAG_pointer **head, Operand *x);
 DAG_node *new_dag_node(char *name, DAG_node *lc,
                        DAG_node *rc, InterCode *k, DAG_pointer *x);
 
